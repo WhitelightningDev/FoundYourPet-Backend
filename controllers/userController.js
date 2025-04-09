@@ -1,5 +1,5 @@
 const User = require('../models/user');  // Ensure the path is correct and case-sensitive
-
+const jwt = require('jsonwebtoken');
 // const bcrypt = require('bcrypt');
 const bcrypt = require('bcryptjs');
 
@@ -51,25 +51,34 @@ exports.signUp = async (req, res) => {
   }
 };
 
-// POST /api/login (Authenticate user)
 exports.login = async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
   const { email, password } = req.body;
 
   try {
-    // Check if the user exists
     let user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ msg: 'Invalid credentials' });
     }
 
-    // Check if password matches
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ msg: 'Invalid credentials' });
     }
 
-    // Generate a token or return success response (depending on your needs)
-    return res.status(200).json({ msg: 'Login successful', user });
+    // ✅ Generate JWT
+    const payload = { userId: user._id };
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+    return res.status(200).json({
+      msg: 'Login successful',
+      user,
+      token, // ✅ Send the token to the frontend
+    });
   } catch (err) {
     return errorHandler(res, err);
   }
