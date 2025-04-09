@@ -5,6 +5,8 @@ const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const cors = require('cors');  // Import cors
 const userRoutes = require('./routes/userRoutes');
+const petRoutes = require('./routes/petRoutes'); // Import pet routes
+const authenticate = require('./middleware/auth'); // Import authentication middleware
 
 // Initialize Express app
 const app = express();
@@ -14,9 +16,6 @@ app.use(cors());  // Use CORS middleware
 
 // Middleware to parse incoming requests with JSON payloads
 app.use(bodyParser.json());
-
-
-
 
 // Connect to MongoDB using environment variable from .env file
 mongoose.connect(process.env.MONGO_URI, {
@@ -29,14 +28,17 @@ mongoose.connect(process.env.MONGO_URI, {
     process.exit(1); // Exit the process if MongoDB connection fails
   });
 
-  app.use((req, res, next) => {
-    console.log(`[${req.method}] ${req.originalUrl}`);
-    next();
-  });
+app.use((req, res, next) => {
+  console.log(`[${req.method}] ${req.originalUrl}`);
+  next();
+});
 
 // Use routes for user-related API calls
-// To this:
 app.use('/api/users', userRoutes);
+
+// Use routes for pet-related API calls
+// The 'authenticate' middleware is applied here to ensure only authenticated users can access pet routes
+app.use('/api/pets', authenticate, petRoutes); // Use the authentication middleware before pet routes
 
 // Default route for root
 app.get('/', (req, res) => {
