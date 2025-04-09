@@ -17,6 +17,16 @@ router.post(
   userController.signUp
 );
 
+// ✅ Add this login route
+router.post(
+  '/login',
+  [
+    check('email', 'Please include a valid email').isEmail(),
+    check('password', 'Password is required').exists(),
+  ],
+  userController.login
+);
+
 // Other user routes
 router.get('/users', userController.getAllUsers);
 router.get('/users/:id', userController.getUserById);
