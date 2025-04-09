@@ -3,13 +3,20 @@ require('dotenv').config(); // Load environment variables from .env file
 const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
+const cors = require('cors');  // Import cors
 const userRoutes = require('./routes/userRoutes');
 
 // Initialize Express app
 const app = express();
 
+// Enable CORS for all routes and origins (you can restrict it to specific origins later)
+app.use(cors());  // Use CORS middleware
+
 // Middleware to parse incoming requests with JSON payloads
 app.use(bodyParser.json());
+
+
+
 
 // Connect to MongoDB using environment variable from .env file
 mongoose.connect(process.env.MONGO_URI, {
@@ -22,8 +29,14 @@ mongoose.connect(process.env.MONGO_URI, {
     process.exit(1); // Exit the process if MongoDB connection fails
   });
 
+  app.use((req, res, next) => {
+    console.log(`[${req.method}] ${req.originalUrl}`);
+    next();
+  });
+
 // Use routes for user-related API calls
-app.use('/api', userRoutes);
+// To this:
+app.use('/api/users', userRoutes);
 
 // Default route for root
 app.get('/', (req, res) => {
@@ -38,7 +51,7 @@ if (!jwtSecret) {
 }
 
 // Define the port (default to 5000 if not specified in .env)
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 // Start the server
 app.listen(PORT, () => {

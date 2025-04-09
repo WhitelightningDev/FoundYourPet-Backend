@@ -1,8 +1,7 @@
-// models/User.js
-
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
+// Define user schema
 const userSchema = new Schema({
   name: {
     type: String,
@@ -27,16 +26,17 @@ const userSchema = new Schema({
   },
   privacyPolicy: {
     type: Boolean,
-    required: true,
+    default: true, // Automatically set to true
   },
   termsConditions: {
     type: Boolean,
-    required: true,
+    default: true, // Automatically set to true
   },
   agreement: {
     type: Boolean,
-    required: true,
+    default: true, // Automatically set to true (optional, you can remove this if unnecessary)
   },
 });
 
+// Export the model correctly
 module.exports = mongoose.model('User', userSchema);

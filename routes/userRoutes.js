@@ -1,5 +1,3 @@
-// routes/userRoutes.js
-
 const express = require('express');
 const { check } = require('express-validator');
 const userController = require('../controllers/userController');
@@ -14,13 +12,12 @@ router.post(
     check('contact', 'Contact is required').not().isEmpty(),
     check('email', 'Please include a valid email').isEmail(),
     check('password', 'Password must be at least 6 characters long').isLength({ min: 6 }),
-    check('privacyPolicy', 'Privacy Policy acceptance is required').equals('true'),
-    check('termsConditions', 'Terms and Conditions acceptance is required').equals('true'),
-    check('agreement', 'You must confirm your age and agreement').equals('true'),
+    // Removed checks for privacyPolicy, termsConditions, and agreement
   ],
   userController.signUp
 );
 
+// Other user routes
 router.get('/users', userController.getAllUsers);
 router.get('/users/:id', userController.getUserById);
 router.put('/users/:id', userController.updateUser);
