@@ -136,6 +136,19 @@ exports.updateUser = async (req, res) => {
   }
 };
 
+exports.getCurrentUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).select('-password');
+    if (!user) {
+      return res.status(404).json({ msg: 'User not found' });
+    }
+    return res.status(200).json(user);
+  } catch (err) {
+    return errorHandler(res, err);
+  }
+};
+
+
 // DELETE /api/users/:id (Delete a user)
 exports.deleteUser = async (req, res) => {
   try {

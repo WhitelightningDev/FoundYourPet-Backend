@@ -2,6 +2,7 @@ const express = require('express');
 const { check } = require('express-validator');
 const userController = require('../controllers/userController');
 const router = express.Router();
+const auth = require('../middleware/auth');
 
 // Route for user signup
 router.post(
@@ -28,6 +29,7 @@ router.post(
 );
 
 // Other user routes
+router.get('/me', auth, userController.getCurrentUser);  // ✅ New route
 router.get('/users', userController.getAllUsers);
 router.get('/users/:id', userController.getUserById);
 router.put('/users/:id', userController.updateUser);
