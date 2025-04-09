@@ -19,11 +19,12 @@ const petSchema = new Schema({
     type: Number,
     required: true,
   },
-  userId: {
+  userId: { // Ensure this field is defined correctly as `userId`
     type: mongoose.Schema.Types.ObjectId,
-    ref: "User", // Reference to the user model
-    required: true,
+    ref: "User", // Reference to the `User` model
+    required: true, // This ensures userId is mandatory
   },
 });
 
 module.exports = mongoose.model("Pet", petSchema);
+

@@ -138,11 +138,12 @@ exports.updateUser = async (req, res) => {
 
 exports.getCurrentUser = async (req, res) => {
   try {
+    // Make sure to fetch user data using the userId in req.user
     const user = await User.findById(req.user.userId).select('-password');
     if (!user) {
       return res.status(404).json({ msg: 'User not found' });
     }
-    return res.status(200).json(user);
+    return res.status(200).json(user);  // Return user data without password
   } catch (err) {
     return errorHandler(res, err);
   }
