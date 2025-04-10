@@ -7,6 +7,9 @@ const cors = require('cors');  // Import cors
 const userRoutes = require('./routes/userRoutes');
 const petRoutes = require('./routes/petRoutes'); // Import pet routes
 const authenticate = require('./middleware/auth'); // Import authentication middleware
+const addOnRoutes = require('./routes/addOnRoutes');
+const packageRoutes = require('./routes/packageRoutes');
+
 
 // Initialize Express app
 const app = express();
@@ -39,6 +42,10 @@ app.use('/api/users', userRoutes);
 // Use routes for pet-related API calls
 // The 'authenticate' middleware is applied here to ensure only authenticated users can access pet routes
 app.use('/api/pets', authenticate, petRoutes); // Use the authentication middleware before pet routes
+
+app.use('/api/addons', addOnRoutes);
+app.use('/api/packages', packageRoutes);
+
 
 // Default route for root
 app.get('/', (req, res) => {
