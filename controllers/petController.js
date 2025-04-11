@@ -9,23 +9,30 @@ const errorHandler = (res, error, message = 'Server error', statusCode = 500) =>
 
 // CREATE a new pet
 exports.createPet = async (req, res) => {
-  const { name, species, breed, age } = req.body;
-  const userId = req.userId;  // This will come from the authenticated user
+  const {
+    name, species, breed, age,
+    gender, dateOfBirth, photoUrl, color, size, weight, spayedNeutered,
+    microchipNumber, vaccinations, allergies, medicalConditions, medications,
+    tagType, engravingInfo, tagSerial,
+    adoptionDate, trainingLevel, personality, dietaryPreferences,
+    vetInfo, insuranceInfo
+  } = req.body;
+  const userId = req.userId;
 
   try {
-    // Validate the input
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    // Create a new pet and associate with the user
     const newPet = new Pet({
-      name,
-      species,
-      breed,
-      age,
-      userId, // Associate pet with the logged-in user
+      name, species, breed, age,
+      gender, dateOfBirth, photoUrl, color, size, weight, spayedNeutered,
+      microchipNumber, vaccinations, allergies, medicalConditions, medications,
+      tagType, engravingInfo, tagSerial,
+      adoptionDate, trainingLevel, personality, dietaryPreferences,
+      vetInfo, insuranceInfo,
+      userId
     });
 
     await newPet.save();
@@ -34,6 +41,7 @@ exports.createPet = async (req, res) => {
     return errorHandler(res, err);
   }
 };
+
 
 // READ all pets for the authenticated user
 exports.getUserPets = async (req, res) => {
@@ -68,28 +76,23 @@ exports.getPetById = async (req, res) => {
 // UPDATE a pet
 exports.updatePet = async (req, res) => {
   const { id } = req.params;
-  const { name, species, breed, age } = req.body;
   const userId = req.userId;
 
   try {
-    // Find pet by ID and ensure it belongs to the logged-in user
     const pet = await Pet.findOne({ _id: id, userId });
     if (!pet) {
-      return res.status(404).json({ msg: 'Pet not found or not authorized to update this pet' });
+      return res.status(404).json({ msg: 'Pet not found or not authorized' });
     }
 
-    // Update pet details
-    pet.name = name || pet.name;
-    pet.species = species || pet.species;
-    pet.breed = breed || pet.breed;
-    pet.age = age || pet.age;
-
+    Object.assign(pet, req.body); // Dynamically update only provided fields
     await pet.save();
+
     return res.status(200).json({ msg: 'Pet updated successfully', pet });
   } catch (err) {
     return errorHandler(res, err);
   }
 };
+
 
 // DELETE a pet
 exports.deletePet = async (req, res) => {
