@@ -118,8 +118,6 @@ exports.getUserById = async (req, res) => {
 
 // PUT /api/users/:id (Update user data)
 exports.updateUser = async (req, res) => {
-  const { name, surname, email } = req.body;
-
   try {
     let user = await User.findById(req.params.id);
 
@@ -127,20 +125,36 @@ exports.updateUser = async (req, res) => {
       return res.status(404).json({ msg: 'User not found' });
     }
 
-    // Update user details
-    user.name = name || user.name;
-    user.surname = surname || user.surname;
-    user.email = email || user.email;
+    // Basic fields
+    user.name = req.body.name || user.name;
+    user.surname = req.body.surname || user.surname;
+    user.email = req.body.email || user.email;
+    user.contact = req.body.contact || user.contact;
+
+    // Secure password update
+    if (req.body.password && req.body.password.trim() !== '') {
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(req.body.password, salt);
+    }
+
+    // Address update with validation
+    if (req.body.address) {
+      const { street, city, province, postalCode, country } = req.body.address;
+      if (!street || !city || !province || !postalCode || !country) {
+        return res.status(400).json({ msg: 'All address fields are required, including country.' });
+      }
+
+      user.address = { street, city, province, postalCode, country };
+    }
 
     await user.save();
     return res.status(200).json({ msg: 'User updated successfully', user });
+
   } catch (err) {
-    if (err.kind === 'ObjectId') {
-      return res.status(404).json({ msg: 'User not found' });
-    }
     return errorHandler(res, err);
   }
 };
+
 
 exports.getCurrentUser = async (req, res) => {
   try {
