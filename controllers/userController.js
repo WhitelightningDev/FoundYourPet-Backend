@@ -1,6 +1,7 @@
 const User = require('../models/user');  // Ensure the path is correct and case-sensitive
 const jwt = require('jsonwebtoken');
 // const bcrypt = require('bcrypt');
+const Pet = require("../models/Pet");
 const bcrypt = require('bcryptjs');
 
 const { validationResult } = require('express-validator');
@@ -68,29 +69,36 @@ exports.login = async (req, res) => {
       return res.status(400).json({ msg: 'Invalid credentials' });
     }
 
-    // ✅ Generate JWT
-    const payload = { userId: user._id };
+    // ✅ Generate JWT with isAdmin included
+    const payload = { userId: user._id, isAdmin: user.isAdmin }; // Add isAdmin to the payload
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
 
     return res.status(200).json({
       msg: 'Login successful',
       user,
-      token, // ✅ Send the token to the frontend
+      token, // Send the token to the frontend
     });
   } catch (err) {
     return errorHandler(res, err);
   }
 };
 
-// GET /api/users (Retrieve all users)
+
+// GET /api/admin/users (Retrieve all users, only accessible by admin)
 exports.getAllUsers = async (req, res) => {
   try {
+    // Ensure the user is an admin
+    if (!req.user || !req.user.isAdmin) {
+      return res.status(403).json({ msg: 'Access denied. Admins only.' });
+    }
+
     const users = await User.find().select('-password'); // Exclude passwords
     return res.status(200).json(users);
   } catch (err) {
     return errorHandler(res, err);
   }
 };
+
 
 // GET /api/users/:id (Retrieve a single user by ID)
 exports.getUserById = async (req, res) => {
@@ -164,5 +172,25 @@ exports.deleteUser = async (req, res) => {
       return res.status(404).json({ msg: 'User not found' });
     }
     return errorHandler(res, err);
+  }
+};
+
+
+// GET /api/users/:id/with-pets (Get a user and their pets)
+exports.getUserWithPets = async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    // Fetch the user
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // Fetch pets associated with the user
+    const pets = await Pet.find({ userId: userId });
+
+    res.status(200).json({ user, pets });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
   }
 };

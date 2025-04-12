@@ -15,10 +15,12 @@ const userSchema = new Schema({
     postalCode: { type: String, required: true },
     country: { type: String, required: true }
   },
+  isAdmin: { type: Boolean, default: false }, // <-- NEW FIELD
   privacyPolicy: { type: Boolean, default: true },
   termsConditions: { type: Boolean, default: true },
   agreement: { type: Boolean, default: true }
 });
+
 
 
 // Export the model correctly
