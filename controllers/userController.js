@@ -19,37 +19,35 @@ exports.signUp = async (req, res) => {
   }
 
   try {
-    const { name, surname, contact, email, password } = req.body;
+    const { name, surname, contact, email, password, address } = req.body;
 
-    // Check if user already exists
     let user = await User.findOne({ email });
     if (user) {
       return res.status(400).json({ msg: 'User already exists' });
     }
 
-    // Hash the password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create a new user with default true values for privacy policy and terms & conditions
     user = new User({
       name,
       surname,
       email,
       contact,
       password: hashedPassword,
-      privacyPolicy: true,  // Automatically accepted
-      termsConditions: true, // Automatically accepted
-      agreement: true, // Automatically accepted (optional, you can remove this if unnecessary)
+      address, // Store address here
+      privacyPolicy: true,
+      termsConditions: true,
+      agreement: true
     });
 
     await user.save();
-
     return res.status(201).json({ msg: 'User registered successfully!', user });
   } catch (err) {
     return errorHandler(res, err);
   }
 };
+
 
 exports.login = async (req, res) => {
   const errors = validationResult(req);
