@@ -5,11 +5,11 @@ const PackageSchema = new mongoose.Schema({
   description: String,
   basePrice: Number,
   price: Number,
-  features: [String],
+  features: [String], // updated from "includes"
   type: {
     type: String,
     required: true,
-    enum: ['standard', 'samsung', 'apple']  // Make sure this is included
+    enum: ['standard', 'samsung', 'apple']
   }
 });
 
