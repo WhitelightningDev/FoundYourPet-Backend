@@ -9,7 +9,7 @@ const errorHandler = (res, error, message = 'Server error', statusCode = 500) =>
 
 // CREATE a new pet
 exports.createPet = async (req, res) => {
-  const {
+  let {
     name, species, breed, age,
     gender, dateOfBirth, photoUrl, color, size, weight, spayedNeutered,
     microchipNumber, vaccinations, allergies, medicalConditions, medications,
@@ -17,6 +17,16 @@ exports.createPet = async (req, res) => {
     adoptionDate, trainingLevel, personality, dietaryPreferences,
     vetInfo, insuranceInfo
   } = req.body;
+
+  // Check and handle invalid enum values
+  if (!['Small', 'Medium', 'Large'].includes(size)) {
+    size = null;  // Or set a default valid value if required
+  }
+
+  if (!['Standard', 'Apple AirTag', 'Samsung SmartTag'].includes(tagType)) {
+    tagType = null;  // Or set a default valid value if required
+  }
+
   const userId = req.userId;
 
   try {
@@ -41,6 +51,7 @@ exports.createPet = async (req, res) => {
     return errorHandler(res, err);
   }
 };
+
 
 
 // READ all pets for the authenticated user

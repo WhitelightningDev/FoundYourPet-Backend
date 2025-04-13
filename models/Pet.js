@@ -13,7 +13,14 @@ const petSchema = new Schema({
   dateOfBirth: { type: Date },
   photoUrl: { type: String },
   color: { type: String },
-  size: { type: String, enum: ['Small', 'Medium', 'Large'] },
+  
+  // Allow empty values for size, defaulting to null if not provided
+  size: { 
+    type: String, 
+    enum: ['Small', 'Medium', 'Large'], 
+    default: null,  // Allows size to be null or a valid enum value
+  },
+  
   weight: { type: Number },
   spayedNeutered: { type: Boolean },
 
@@ -23,7 +30,13 @@ const petSchema = new Schema({
   medicalConditions: [{ type: String }],
   medications: [{ type: String }],
 
-  tagType: { type: String, enum: ['Standard', 'Apple AirTag', 'Samsung SmartTag'] },
+  // Allow empty values for tagType, defaulting to null if not provided
+  tagType: { 
+    type: String, 
+    enum: ['Standard', 'Apple AirTag', 'Samsung SmartTag'], 
+    default: null,  // Allows tagType to be null or a valid enum value
+  },
+  
   engravingInfo: { type: String },
   tagSerial: { type: String },
 
