@@ -20,6 +20,10 @@ router.get('/', petAuth, petController.getUserPets); // Use petAuth to validate 
 // READ - Get a specific pet by ID
 router.get('/:id', petAuth, petController.getPetById); // Use petAuth to validate userId
 
+// GET /api/pets/public/:petId
+router.get('/public/:petId', petController.getPublicPetProfile);
+
+
 // UPDATE - Update pet details
 router.put('/:id', [
   check('name', 'Pet name is required').not().isEmpty(),

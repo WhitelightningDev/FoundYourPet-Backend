@@ -10,6 +10,7 @@ const authenticate = require('./middleware/auth'); // Import authentication midd
 const admin = require('./middleware/admin');  // Import admin middleware for restricted routes
 const addOnRoutes = require('./routes/addOnRoutes');
 const packageRoutes = require('./routes/packageRoutes');
+const publicPetRoutes = require('./routes/publicPetRoutes'); // 👈 new route file
 
 // Initialize Express app
 const app = express();
@@ -39,6 +40,9 @@ app.use((req, res, next) => {
 
 // Use routes for user-related API calls
 app.use('/api/users', userRoutes);
+
+// Place this ABOVE the authenticated route
+app.use('/api/pets/public', publicPetRoutes); // ✅ No authentication here
 
 // Use routes for pet-related API calls
 // Apply authentication middleware here so only authenticated users can access pet routes

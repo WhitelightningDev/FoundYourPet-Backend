@@ -123,3 +123,19 @@ exports.deletePet = async (req, res) => {
     return errorHandler(res, err);
   }
 };
+
+
+exports.getPublicPetProfile = async (req, res) => {
+  try {
+    const pet = await Pet.findById(req.params.petId);
+    if (!pet) return res.status(404).json({ msg: 'Pet not found' });
+
+    const owner = await User.findById(pet.userId).select('name surname email contact');
+    if (!owner) return res.status(404).json({ msg: 'Owner not found' });
+
+    res.json({ pet, owner });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: 'Server error' });
+  }
+};
