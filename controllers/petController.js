@@ -129,13 +129,17 @@ exports.deletePet = async (req, res) => {
 
 exports.getPublicPetProfile = async (req, res) => {
   try {
-    const pet = await Pet.findById(req.params.petId).select(
-      'name species breed age gender color photoUrl tagType engravingInfo tagSerial microchipNumber'
-    );
+    const pet = await Pet.findById(req.params.petId)
+      .populate('userId', 'firstName lastName email contact') // Populate owner data
+      .select(
+        'name species breed age gender color photoUrl tagType engravingInfo tagSerial microchipNumber'
+      );
 
     if (!pet) return res.status(404).json({ msg: 'Pet not found' });
 
-    const owner = await User.findById(pet.userId).select('name surname email contact');
+    // Since the owner is populated, we can access it directly from `pet.userId`
+    const owner = pet.userId; // `userId` is now populated, so it directly contains the owner info.
+
     if (!owner) return res.status(404).json({ msg: 'Owner not found' });
 
     res.json({ pet, owner });
