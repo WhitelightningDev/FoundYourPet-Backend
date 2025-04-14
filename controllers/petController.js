@@ -129,30 +129,19 @@ exports.deletePet = async (req, res) => {
 
 exports.getPublicPetProfile = async (req, res) => {
   try {
-    const petId = req.params.petId;
-
-    // Only select public-safe pet fields
-    const pet = await Pet.findById(petId).select(
-      'name species breed age gender color photoUrl tagType engravingInfo tagSerial'
+    const pet = await Pet.findById(req.params.petId).select(
+      'name species breed age gender color photoUrl tagType engravingInfo tagSerial microchipNumber'
     );
 
-    if (!pet) {
-      return res.status(404).json({ msg: 'Pet not found' });
-    }
+    if (!pet) return res.status(404).json({ msg: 'Pet not found' });
 
-    const owner = await User.findById(pet.userId).select(
-      'name surname email contact'
-    );
+    const owner = await User.findById(pet.userId).select('name surname email contact');
+    if (!owner) return res.status(404).json({ msg: 'Owner not found' });
 
-    if (!owner) {
-      return res.status(404).json({ msg: 'Owner not found' });
-    }
-
-    res.status(200).json({
-      pet,
-      owner,
-    });
+    res.json({ pet, owner });
   } catch (err) {
-    return errorHandler(res, err, 'Failed to fetch public pet profile');
+    console.error(err);
+    res.status(500).json({ msg: 'Server error' });
   }
 };
+
