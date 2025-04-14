@@ -1,4 +1,4 @@
-const User = require('../models/User');  // Ensure the path is correct and case-sensitive
+const User = require('../models/user');  // Ensure the path is correct and case-sensitive
 const jwt = require('jsonwebtoken');
 // const bcrypt = require('bcrypt');
 const Pet = require("../models/Pet");
