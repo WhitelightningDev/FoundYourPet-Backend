@@ -128,20 +128,20 @@ exports.deletePet = async (req, res) => {
 
 
 exports.getPublicPetProfile = async (req, res) => {
-  console.log('Public route hit for petId:', req.params.petId); // 👈 Add this
-
   try {
-    const pet = await Pet.findById(req.params.petId).populate('userId', 'firstName lastName email');
-    if (!pet) {
-      console.log('No pet found in DB'); // 👈 Add this
-      return res.status(404).json({ msg: 'Pet not found' });
-    }
+    const pet = await Pet.findById(req.params.petId).select(
+      'name species breed age gender color photoUrl tagType engravingInfo tagSerial microchipNumber'
+    );
 
-    res.json({ pet, user: pet.userId });
+    if (!pet) return res.status(404).json({ msg: 'Pet not found' });
+
+    const owner = await User.findById(pet.userId).select('name surname email contact');
+    if (!owner) return res.status(404).json({ msg: 'Owner not found' });
+
+    res.json({ pet, owner });
   } catch (err) {
-    console.error('Error in getPublicPetProfile:', err);
+    console.error(err);
     res.status(500).json({ msg: 'Server error' });
   }
 };
-
 
