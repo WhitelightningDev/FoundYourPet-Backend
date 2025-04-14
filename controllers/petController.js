@@ -1,6 +1,6 @@
 const Pet = require('../models/Pet');
 const { validationResult } = require('express-validator');
-const User = require("../models/User");
+
 
 
 // Advanced Error Handler
