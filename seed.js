@@ -27,7 +27,7 @@ const seedPackages = [
     features: [
       "25mm Aluminium Round Tag",
       "Engraved QR Code",
-      "Pet profile access",
+      "Pet Profile Access",
       "Initial Amount Includes R70 For Monthely Membership"
     ]
   },
