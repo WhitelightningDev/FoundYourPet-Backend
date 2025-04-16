@@ -119,7 +119,7 @@ exports.deletePet = async (req, res) => {
       return res.status(404).json({ msg: 'Pet not found or not authorized to delete this pet' });
     }
 
-    await pet.remove();
+    await Pet.findByIdAndDelete(pet._id);
     return res.status(200).json({ msg: 'Pet deleted successfully' });
   } catch (err) {
     return errorHandler(res, err);
