@@ -25,11 +25,10 @@ const seedPackages = [
     price: 190,
     description: "Classic engraved QR tag with monthly support membership.",
     features: [
-      "Standard Round pet tag",
-      "QR code",
-      "Engraving included",
+      "25mm Aluminium Round Tag",
+      "Engraved QR Code",
       "Pet profile access",
-      "Includes R70/month membership"
+      "Initial Amount Includes R70 For Monthely Membership"
     ]
   },
   {
