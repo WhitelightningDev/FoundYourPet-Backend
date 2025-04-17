@@ -8,7 +8,6 @@ const errorHandler = (res, error, message = 'Server error', statusCode = 500) =>
   return res.status(statusCode).json({ msg: message, error: error.message });
 };
 
-// CREATE a new pet
 exports.createPet = async (req, res) => {
   let {
     name,
@@ -36,12 +35,10 @@ exports.createPet = async (req, res) => {
 
   const userId = req.userId;
 
-  // Validate enums
   if (!['Small', 'Medium', 'Large'].includes(size)) size = null;
   if (!['Standard', 'Apple AirTag', 'Samsung SmartTag'].includes(tagType)) tagType = null;
   spayedNeutered = spayedNeutered === 'true' || spayedNeutered === true;
 
-  // Optional cleanup
   vaccinations = vaccinations || [];
   allergies = allergies || [];
   medicalConditions = medicalConditions || [];
@@ -51,27 +48,7 @@ exports.createPet = async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-    let finalPhotoUrl = null;
-
-    // Upload image to Cloudinary if it exists
-    if (req.file) {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        { folder: 'pet_images' },
-        (error, result) => {
-          if (error) {
-            return res.status(500).json({ message: 'Cloudinary upload failed', error });
-          }
-          finalPhotoUrl = result.secure_url; // Store the Cloudinary URL
-          createPetInDB(); // Continue creating the pet in the database
-        }
-      );
-      streamifier.createReadStream(req.file.buffer).pipe(uploadStream); // Upload from buffer
-    } else {
-      createPetInDB(); // Proceed if no file is uploaded
-    }
-
-    // Function to create the pet after upload
-    const createPetInDB = async () => {
+    const createPetInDB = async (photoUrl = null) => {
       const newPet = new Pet({
         name,
         species,
@@ -82,7 +59,7 @@ exports.createPet = async (req, res) => {
         size,
         spayedNeutered,
         tagType,
-        photoUrl: finalPhotoUrl,
+        photoUrl,
         userId,
         vaccinations,
         allergies,
@@ -101,10 +78,31 @@ exports.createPet = async (req, res) => {
       await newPet.save();
       return res.status(201).json({ msg: "Pet added successfully", pet: newPet });
     };
+
+    // If there's a file, upload to Cloudinary first
+    if (req.file) {
+      const stream = streamifier.createReadStream(req.file.buffer);
+      const result = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          { folder: 'pet_images' },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve(result);
+          }
+        );
+        stream.pipe(uploadStream);
+      });
+
+      await createPetInDB(result.secure_url);
+    } else {
+      await createPetInDB(); // No image, proceed without photo
+    }
+
   } catch (err) {
     return errorHandler(res, err);
   }
 };
+
 
 // READ all pets for the authenticated user
 exports.getUserPets = async (req, res) => {
