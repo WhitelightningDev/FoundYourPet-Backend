@@ -13,47 +13,44 @@ const errorHandler = (res, error, message = 'Server error', statusCode = 500) =>
 exports.createPet = async (req, res) => {
   let {
     name, species, breed, age,
-    gender, dateOfBirth, photoUrl, color, size, weight, spayedNeutered,
-    microchipNumber, vaccinations, allergies, medicalConditions, medications,
-    tagType, engravingInfo, tagSerial,
-    adoptionDate, trainingLevel, personality, dietaryPreferences,
-    vetInfo, insuranceInfo
+    gender, photoUrl, color, size,spayedNeutered,
+    tagType, 
   } = req.body;
 
+  const userId = req.userId;
+  const photoBuffer = req.file?.buffer;
+
   // Validate enums
-  if (!['Small', 'Medium', 'Large'].includes(size)) {
-    size = null;
-  }
+  if (!['Small', 'Medium', 'Large'].includes(size)) size = null;
+  if (!['Standard', 'Apple AirTag', 'Samsung SmartTag'].includes(tagType)) tagType = null;
 
-  if (!['Standard', 'Apple AirTag', 'Samsung SmartTag'].includes(tagType)) {
-    tagType = null;
-  }
-
-  // Ensure some default values for optional fields
+  // Optional cleanup
   vaccinations = vaccinations || [];
   allergies = allergies || [];
   medicalConditions = medicalConditions || [];
   medications = medications || [];
   spayedNeutered = spayedNeutered === 'true' || spayedNeutered === true;
 
-  const userId = req.userId;
-  const photoBuffer = req.file?.buffer;
-
-
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-    // Validate base64 format for image if provided
-    if (photoUrl && !/^data:image\/[a-z]+;base64,/.test(photoUrl)) {
-      return res.status(400).json({ msg: "Invalid image format in photoUrl." });
-    }
+    let finalPhotoUrl = null;
 
-    // Optional: limit image size (~2MB limit here)
-    if (photoUrl && photoUrl.length > 2_000_000) {
-      return res.status(400).json({ msg: "Image is too large. Please upload a smaller image." });
+    // If user uploaded image file (via form), convert it to base64 (or later upload to S3/Cloudinary)
+    if (photoBuffer) {
+      const mimeType = req.file.mimetype;
+      const base64 = photoBuffer.toString('base64');
+      finalPhotoUrl = `data:${mimeType};base64,${base64}`;
+    } else if (photoUrl) {
+      // Validate base64 string input
+      if (!/^data:image\/[a-z]+;base64,/.test(photoUrl)) {
+        return res.status(400).json({ msg: "Invalid image format in photoUrl." });
+      }
+      if (photoUrl.length > 2_000_000) {
+        return res.status(400).json({ msg: "Image is too large. Please upload a smaller image." });
+      }
+      finalPhotoUrl = photoUrl;
     }
 
     const newPet = new Pet({
@@ -62,26 +59,9 @@ exports.createPet = async (req, res) => {
       breed,
       age,
       gender,
-      dateOfBirth,
-      photoUrl,
+      photoUrl: finalPhotoUrl,
       color,
-      size,
-      weight,
       spayedNeutered,
-      microchipNumber,
-      vaccinations,
-      allergies,
-      medicalConditions,
-      medications,
-      tagType,
-      engravingInfo,
-      tagSerial,
-      adoptionDate,
-      trainingLevel,
-      personality,
-      dietaryPreferences,
-      vetInfo,
-      insuranceInfo,
       userId
     });
 
