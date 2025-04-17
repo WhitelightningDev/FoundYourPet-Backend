@@ -53,39 +53,54 @@ exports.createPet = async (req, res) => {
 
     let finalPhotoUrl = null;
 
+    // Upload image to Cloudinary if it exists
     if (req.file) {
-      finalPhotoUrl = `/uploads/${req.file.filename}`;
+      const uploadStream = cloudinary.uploader.upload_stream(
+        { folder: 'pet_images' },
+        (error, result) => {
+          if (error) {
+            return res.status(500).json({ message: 'Cloudinary upload failed', error });
+          }
+          finalPhotoUrl = result.secure_url; // Store the Cloudinary URL
+          createPetInDB(); // Continue creating the pet in the database
+        }
+      );
+      streamifier.createReadStream(req.file.buffer).pipe(uploadStream); // Upload from buffer
+    } else {
+      createPetInDB(); // Proceed if no file is uploaded
     }
 
-    const newPet = new Pet({
-      name,
-      species,
-      breed,
-      age,
-      gender,
-      color,
-      size,
-      spayedNeutered,
-      tagType,
-      photoUrl: finalPhotoUrl,
-      userId,
-      vaccinations,
-      allergies,
-      medicalConditions,
-      medications,
-      engravingInfo,
-      tagSerial,
-      microchipNumber,
-      dateOfBirth,
-      personality,
-      dietaryPreferences,
-      vetInfo,
-      insuranceInfo
-    });
+    // Function to create the pet after upload
+    const createPetInDB = async () => {
+      const newPet = new Pet({
+        name,
+        species,
+        breed,
+        age,
+        gender,
+        color,
+        size,
+        spayedNeutered,
+        tagType,
+        photoUrl: finalPhotoUrl,
+        userId,
+        vaccinations,
+        allergies,
+        medicalConditions,
+        medications,
+        engravingInfo,
+        tagSerial,
+        microchipNumber,
+        dateOfBirth,
+        personality,
+        dietaryPreferences,
+        vetInfo,
+        insuranceInfo
+      });
 
-    await newPet.save();
-    return res.status(201).json({ msg: "Pet added successfully", pet: newPet });
-
+      await newPet.save();
+      return res.status(201).json({ msg: "Pet added successfully", pet: newPet });
+    };
   } catch (err) {
     return errorHandler(res, err);
   }
@@ -116,6 +131,7 @@ exports.getPetById = async (req, res) => {
 };
 
 // UPDATE a pet
+// UPDATE a pet
 exports.updatePet = async (req, res) => {
   const { id } = req.params;
   const userId = req.userId;
@@ -126,13 +142,28 @@ exports.updatePet = async (req, res) => {
 
     Object.assign(pet, req.body); // Update with new values from req.body
 
+    // Upload new image to Cloudinary if it exists
     if (req.file) {
-      pet.photoUrl = `/uploads/${req.file.filename}`;
+      const uploadStream = cloudinary.uploader.upload_stream(
+        { folder: 'pet_images' },
+        (error, result) => {
+          if (error) {
+            return res.status(500).json({ message: 'Cloudinary upload failed', error });
+          }
+          pet.photoUrl = result.secure_url; // Update the photo URL
+          updatePetInDB(); // Continue updating the pet in the database
+        }
+      );
+      streamifier.createReadStream(req.file.buffer).pipe(uploadStream); // Upload from buffer
+    } else {
+      updatePetInDB(); // Proceed if no new file is uploaded
     }
 
-    await pet.save();
-
-    return res.status(200).json({ msg: 'Pet updated successfully', pet });
+    // Function to update the pet after the image upload
+    const updatePetInDB = async () => {
+      await pet.save();
+      return res.status(200).json({ msg: 'Pet updated successfully', pet });
+    };
   } catch (err) {
     return errorHandler(res, err);
   }

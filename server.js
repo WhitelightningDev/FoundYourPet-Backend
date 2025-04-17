@@ -13,8 +13,18 @@ const admin = require('./middleware/admin');
 const addOnRoutes = require('./routes/addOnRoutes');
 const packageRoutes = require('./routes/packageRoutes');
 const publicPetRoutes = require('./routes/publicPetRoutes');
+const cloudinary = require('cloudinary').v2;
 
 const app = express();
+
+// Cloudinary configuration
+// Load environment variables from .env
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,  // Cloud name from .env
+  api_key: process.env.CLOUDINARY_API_KEY,        // API key from .env
+  api_secret: process.env.CLOUDINARY_API_SECRET   // API secret from .env
+});
+
 
 // Body parser and limits
 app.use(express.json({ limit: "10mb" }));

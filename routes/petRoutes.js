@@ -1,4 +1,3 @@
-// models/petRoutes.js
 const express = require('express');
 const { check } = require('express-validator');
 const petController = require('../controllers/petController');
@@ -6,26 +5,18 @@ const petAuth = require('../middleware/petAuth'); // Pet-specific authentication
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
+const cloudinary = require('cloudinary').v2; // Cloudinary SDK
+const streamifier = require('streamifier'); // For uploading directly from a buffer
 
-// Ensure 'uploads' directory exists
-const uploadDir = path.join(__dirname, '..', 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
-
-// Configure multer for disk storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, `${file.fieldname}-${uniqueSuffix}${path.extname(file.originalname)}`);
-  },
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const upload = multer({ storage });
+// Multer storage is not needed now as we're uploading directly to Cloudinary
+const upload = multer();
 
 // ----------------------------
 // ROUTES
@@ -42,7 +33,30 @@ router.post(
     check('age', 'Pet age is required').isNumeric(),
   ],
   petAuth,
-  petController.createPet
+  async (req, res) => {
+    try {
+      // Handle Cloudinary upload
+      if (req.file) {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          { folder: 'pet_images' },
+          (error, result) => {
+            if (error) {
+              return res.status(500).json({ message: 'Cloudinary upload failed', error });
+            }
+            // Attach the Cloudinary image URL to the pet data
+            req.body.photoUrl = result.secure_url;
+            petController.createPet(req, res); // Call the controller to continue the pet creation
+          }
+        );
+        streamifier.createReadStream(req.file.buffer).pipe(uploadStream); // Upload image from buffer
+      } else {
+        // If no image is provided, proceed with creating the pet without a photo
+        petController.createPet(req, res);
+      }
+    } catch (error) {
+      res.status(500).json({ message: 'Error during pet creation', error });
+    }
+  }
 );
 
 // READ - Get all pets for the authenticated user
@@ -64,7 +78,28 @@ router.put(
     check('age', 'Pet age is required').isNumeric(),
   ],
   petAuth,
-  petController.updatePet
+  async (req, res) => {
+    try {
+      // Handle Cloudinary upload if new photo is provided
+      if (req.file) {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          { folder: 'pet_images' },
+          (error, result) => {
+            if (error) {
+              return res.status(500).json({ message: 'Cloudinary upload failed', error });
+            }
+            req.body.photoUrl = result.secure_url; // Update the photo URL
+            petController.updatePet(req, res); // Call the controller to continue with the update
+          }
+        );
+        streamifier.createReadStream(req.file.buffer).pipe(uploadStream); // Upload image from buffer
+      } else {
+        petController.updatePet(req, res); // Proceed without updating the image
+      }
+    } catch (error) {
+      res.status(500).json({ message: 'Error during pet update', error });
+    }
+  }
 );
 
 // DELETE - Delete a specific pet by ID
