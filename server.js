@@ -16,6 +16,8 @@ const publicPetRoutes = require('./routes/publicPetRoutes'); // 👈 new route f
 
 // Initialize Express app
 const app = express();
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Enable CORS for all routes and origins (you can restrict it to specific origins later)
 app.use(cors());  // Use CORS middleware
