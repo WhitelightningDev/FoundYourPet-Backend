@@ -1,6 +1,9 @@
 const Pet = require('../models/Pet');
 const { validationResult } = require('express-validator');
 const User = require("../models/user");
+// ✅ ADD THESE IMPORTS
+const streamifier = require('streamifier');
+const cloudinary = require('cloudinary').v2;
 
 // Advanced Error Handler
 const errorHandler = (res, error, message = 'Server error', statusCode = 500) => {
@@ -15,22 +18,6 @@ exports.createPet = async (req, res) => {
     breed,
     age,
     gender,
-    color,
-    size,
-    spayedNeutered,
-    tagType,
-    vaccinations,
-    allergies,
-    medicalConditions,
-    medications,
-    engravingInfo,
-    tagSerial,
-    microchipNumber,
-    dateOfBirth,
-    personality,
-    dietaryPreferences,
-    vetInfo,
-    insuranceInfo
   } = req.body;
 
   const userId = req.userId;
@@ -55,31 +42,16 @@ exports.createPet = async (req, res) => {
         breed,
         age,
         gender,
-        color,
-        size,
         spayedNeutered,
-        tagType,
         photoUrl,
         userId,
-        vaccinations,
-        allergies,
-        medicalConditions,
-        medications,
-        engravingInfo,
-        tagSerial,
-        microchipNumber,
-        dateOfBirth,
-        personality,
-        dietaryPreferences,
-        vetInfo,
-        insuranceInfo
       });
 
       await newPet.save();
       return res.status(201).json({ msg: "Pet added successfully", pet: newPet });
     };
 
-    // If there's a file, upload to Cloudinary first
+    // ✅ If there's a file, upload to Cloudinary first
     if (req.file) {
       const stream = streamifier.createReadStream(req.file.buffer);
       const result = await new Promise((resolve, reject) => {
