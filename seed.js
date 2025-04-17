@@ -23,13 +23,12 @@ const seedPackages = [
     type: "standard",
     basePrice: 120,
     price: 190,
-    description: "Classic engraved QR tag with monthly support membership.",
+    description: "Classic engraved QR tag with delivery, and profile access.",
     features: [
       "25mm Aluminium Round Tag",
       "Engraved QR Code",
       "Delivery To Closest PUDO Locker",
-      "Pet Profile Access",
-      "Initial Amount Includes R50 For Monthley Membership"
+      "Pet Profile Access"
     ]
   },
   {

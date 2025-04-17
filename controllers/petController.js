@@ -20,16 +20,25 @@ exports.createPet = async (req, res) => {
     vetInfo, insuranceInfo
   } = req.body;
 
-  // Check and handle invalid enum values
+  // Validate enums
   if (!['Small', 'Medium', 'Large'].includes(size)) {
-    size = null;  // Or set a default valid value if required
+    size = null;
   }
 
   if (!['Standard', 'Apple AirTag', 'Samsung SmartTag'].includes(tagType)) {
-    tagType = null;  // Or set a default valid value if required
+    tagType = null;
   }
 
+  // Ensure some default values for optional fields
+  vaccinations = vaccinations || [];
+  allergies = allergies || [];
+  medicalConditions = medicalConditions || [];
+  medications = medications || [];
+  spayedNeutered = spayedNeutered === 'true' || spayedNeutered === true;
+
   const userId = req.userId;
+  const photoBuffer = req.file?.buffer;
+
 
   try {
     const errors = validationResult(req);
@@ -37,18 +46,48 @@ exports.createPet = async (req, res) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
+    // Validate base64 format for image if provided
+    if (photoUrl && !/^data:image\/[a-z]+;base64,/.test(photoUrl)) {
+      return res.status(400).json({ msg: "Invalid image format in photoUrl." });
+    }
+
+    // Optional: limit image size (~2MB limit here)
+    if (photoUrl && photoUrl.length > 2_000_000) {
+      return res.status(400).json({ msg: "Image is too large. Please upload a smaller image." });
+    }
+
     const newPet = new Pet({
-      name, species, breed, age,
-      gender, dateOfBirth, photoUrl, color, size, weight, spayedNeutered,
-      microchipNumber, vaccinations, allergies, medicalConditions, medications,
-      tagType, engravingInfo, tagSerial,
-      adoptionDate, trainingLevel, personality, dietaryPreferences,
-      vetInfo, insuranceInfo,
+      name,
+      species,
+      breed,
+      age,
+      gender,
+      dateOfBirth,
+      photoUrl,
+      color,
+      size,
+      weight,
+      spayedNeutered,
+      microchipNumber,
+      vaccinations,
+      allergies,
+      medicalConditions,
+      medications,
+      tagType,
+      engravingInfo,
+      tagSerial,
+      adoptionDate,
+      trainingLevel,
+      personality,
+      dietaryPreferences,
+      vetInfo,
+      insuranceInfo,
       userId
     });
 
     await newPet.save();
     return res.status(201).json({ msg: "Pet added successfully", pet: newPet });
+
   } catch (err) {
     return errorHandler(res, err);
   }

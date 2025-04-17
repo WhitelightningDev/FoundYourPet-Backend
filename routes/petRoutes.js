@@ -5,10 +5,15 @@ const petController = require('../controllers/petController');
 const authenticate = require('../middleware/auth'); // Import authenticate middleware for general user auth
 const petAuth = require('../middleware/petAuth'); // Import pet-specific auth middleware
 const router = express.Router();
+const multer = require('multer');
+const storage = multer.memoryStorage(); // Or configure for disk/cloud storage
+const upload = multer({ storage });
+
 
 // CRUD Routes for Pets
 // CREATE - Add a new pet (with petAuth to handle the userId)
-router.post('/create', [
+// Replace the create route
+router.post('/create', upload.single('photo'), [
   check('name', 'Pet name is required').not().isEmpty(),
   check('species', 'Pet species is required').not().isEmpty(),
   check('breed', 'Pet breed is required').not().isEmpty(),
