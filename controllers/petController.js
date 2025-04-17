@@ -2,7 +2,6 @@ const Pet = require('../models/Pet');
 const { validationResult } = require('express-validator');
 const User = require("../models/user");
 
-
 // Advanced Error Handler
 const errorHandler = (res, error, message = 'Server error', statusCode = 500) => {
   console.error(error.message || error);
@@ -12,24 +11,41 @@ const errorHandler = (res, error, message = 'Server error', statusCode = 500) =>
 // CREATE a new pet
 exports.createPet = async (req, res) => {
   let {
-    name, species, breed, age,
-    gender, photoUrl, color, size,spayedNeutered,
-    tagType, 
+    name,
+    species,
+    breed,
+    age,
+    gender,
+    color,
+    size,
+    spayedNeutered,
+    tagType,
+    vaccinations,
+    allergies,
+    medicalConditions,
+    medications,
+    engravingInfo,
+    tagSerial,
+    microchipNumber,
+    dateOfBirth,
+    personality,
+    dietaryPreferences,
+    vetInfo,
+    insuranceInfo
   } = req.body;
 
   const userId = req.userId;
-  const photoBuffer = req.file?.buffer;
 
   // Validate enums
   if (!['Small', 'Medium', 'Large'].includes(size)) size = null;
   if (!['Standard', 'Apple AirTag', 'Samsung SmartTag'].includes(tagType)) tagType = null;
+  spayedNeutered = spayedNeutered === 'true' || spayedNeutered === true;
 
   // Optional cleanup
   vaccinations = vaccinations || [];
   allergies = allergies || [];
   medicalConditions = medicalConditions || [];
   medications = medications || [];
-  spayedNeutered = spayedNeutered === 'true' || spayedNeutered === true;
 
   try {
     const errors = validationResult(req);
@@ -37,20 +53,8 @@ exports.createPet = async (req, res) => {
 
     let finalPhotoUrl = null;
 
-    // If user uploaded image file (via form), convert it to base64 (or later upload to S3/Cloudinary)
-    if (photoBuffer) {
-      const mimeType = req.file.mimetype;
-      const base64 = photoBuffer.toString('base64');
-      finalPhotoUrl = `data:${mimeType};base64,${base64}`;
-    } else if (photoUrl) {
-      // Validate base64 string input
-      if (!/^data:image\/[a-z]+;base64,/.test(photoUrl)) {
-        return res.status(400).json({ msg: "Invalid image format in photoUrl." });
-      }
-      if (photoUrl.length > 2_000_000) {
-        return res.status(400).json({ msg: "Image is too large. Please upload a smaller image." });
-      }
-      finalPhotoUrl = photoUrl;
+    if (req.file) {
+      finalPhotoUrl = `/uploads/${req.file.filename}`;
     }
 
     const newPet = new Pet({
@@ -59,10 +63,24 @@ exports.createPet = async (req, res) => {
       breed,
       age,
       gender,
-      photoUrl: finalPhotoUrl,
       color,
+      size,
       spayedNeutered,
-      userId
+      tagType,
+      photoUrl: finalPhotoUrl,
+      userId,
+      vaccinations,
+      allergies,
+      medicalConditions,
+      medications,
+      engravingInfo,
+      tagSerial,
+      microchipNumber,
+      dateOfBirth,
+      personality,
+      dietaryPreferences,
+      vetInfo,
+      insuranceInfo
     });
 
     await newPet.save();
@@ -73,14 +91,10 @@ exports.createPet = async (req, res) => {
   }
 };
 
-
-
 // READ all pets for the authenticated user
 exports.getUserPets = async (req, res) => {
   const userId = req.userId;
-
   try {
-    // Fetch pets only for the logged-in user
     const pets = await Pet.find({ userId });
     return res.status(200).json(pets);
   } catch (err) {
@@ -92,13 +106,9 @@ exports.getUserPets = async (req, res) => {
 exports.getPetById = async (req, res) => {
   const { id } = req.params;
   const userId = req.userId;
-
   try {
-    // Ensure that the pet belongs to the logged-in user
     const pet = await Pet.findOne({ _id: id, userId });
-    if (!pet) {
-      return res.status(404).json({ msg: 'Pet not found or not authorized to access this pet' });
-    }
+    if (!pet) return res.status(404).json({ msg: 'Pet not found or not authorized to access this pet' });
     return res.status(200).json(pet);
   } catch (err) {
     return errorHandler(res, err);
@@ -112,11 +122,14 @@ exports.updatePet = async (req, res) => {
 
   try {
     const pet = await Pet.findOne({ _id: id, userId });
-    if (!pet) {
-      return res.status(404).json({ msg: 'Pet not found or not authorized' });
+    if (!pet) return res.status(404).json({ msg: 'Pet not found or not authorized' });
+
+    Object.assign(pet, req.body); // Update with new values from req.body
+
+    if (req.file) {
+      pet.photoUrl = `/uploads/${req.file.filename}`;
     }
 
-    Object.assign(pet, req.body); // Dynamically update only provided fields
     await pet.save();
 
     return res.status(200).json({ msg: 'Pet updated successfully', pet });
@@ -125,18 +138,14 @@ exports.updatePet = async (req, res) => {
   }
 };
 
-
 // DELETE a pet
 exports.deletePet = async (req, res) => {
   const { id } = req.params;
   const userId = req.userId;
 
   try {
-    // Find pet by ID and ensure it belongs to the logged-in user
     const pet = await Pet.findOne({ _id: id, userId });
-    if (!pet) {
-      return res.status(404).json({ msg: 'Pet not found or not authorized to delete this pet' });
-    }
+    if (!pet) return res.status(404).json({ msg: 'Pet not found or not authorized to delete this pet' });
 
     await Pet.findByIdAndDelete(pet._id);
     return res.status(200).json({ msg: 'Pet deleted successfully' });
@@ -145,26 +154,22 @@ exports.deletePet = async (req, res) => {
   }
 };
 
-
+// PUBLIC pet profile (from QR code scan)
 exports.getPublicPetProfile = async (req, res) => {
   try {
     const pet = await Pet.findById(req.params.petId)
-      .populate('userId', 'firstName lastName email contact') // Populate owner data
+      .populate('userId', 'firstName lastName email contact')
       .select(
         'name species breed age gender color photoUrl tagType engravingInfo tagSerial microchipNumber'
       );
 
     if (!pet) return res.status(404).json({ msg: 'Pet not found' });
 
-    // Since the owner is populated, we can access it directly from `pet.userId`
-    const owner = pet.userId; // `userId` is now populated, so it directly contains the owner info.
-
+    const owner = pet.userId;
     if (!owner) return res.status(404).json({ msg: 'Owner not found' });
 
     res.json({ pet, owner });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ msg: 'Server error' });
+    return errorHandler(res, err);
   }
 };
-

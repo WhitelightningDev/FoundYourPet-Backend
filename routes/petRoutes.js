@@ -2,43 +2,72 @@
 const express = require('express');
 const { check } = require('express-validator');
 const petController = require('../controllers/petController');
-const authenticate = require('../middleware/auth'); // Import authenticate middleware for general user auth
-const petAuth = require('../middleware/petAuth'); // Import pet-specific auth middleware
+const petAuth = require('../middleware/petAuth'); // Pet-specific authentication middleware
 const router = express.Router();
 const multer = require('multer');
-const storage = multer.memoryStorage(); // Or configure for disk/cloud storage
+const path = require('path');
+const fs = require('fs');
+
+// Ensure 'uploads' directory exists
+const uploadDir = path.join(__dirname, '..', 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
+
+// Configure multer for disk storage
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, `${file.fieldname}-${uniqueSuffix}${path.extname(file.originalname)}`);
+  },
+});
+
 const upload = multer({ storage });
 
+// ----------------------------
+// ROUTES
+// ----------------------------
 
-// CRUD Routes for Pets
-// CREATE - Add a new pet (with petAuth to handle the userId)
-// Replace the create route
-router.post('/create', upload.single('photo'), [
-  check('name', 'Pet name is required').not().isEmpty(),
-  check('species', 'Pet species is required').not().isEmpty(),
-  check('breed', 'Pet breed is required').not().isEmpty(),
-  check('age', 'Pet age is required').isNumeric(),
-], petAuth, petController.createPet); // Apply petAuth for userId handling
+// CREATE - Add a new pet
+router.post(
+  '/create',
+  upload.single('photo'),
+  [
+    check('name', 'Pet name is required').not().isEmpty(),
+    check('species', 'Pet species is required').not().isEmpty(),
+    check('breed', 'Pet breed is required').not().isEmpty(),
+    check('age', 'Pet age is required').isNumeric(),
+  ],
+  petAuth,
+  petController.createPet
+);
 
 // READ - Get all pets for the authenticated user
-router.get('/', petAuth, petController.getUserPets); // Use petAuth to validate userId
+router.get('/', petAuth, petController.getUserPets);
 
 // READ - Get a specific pet by ID
-router.get('/:id', petAuth, petController.getPetById); // Use petAuth to validate userId
+router.get('/:id', petAuth, petController.getPetById);
 
-// GET /api/pets/public/:petId
+// READ - Public profile for QR scanning
 router.get('/public/:petId', petController.getPublicPetProfile);
 
-
 // UPDATE - Update pet details
-router.put('/:id', [
-  check('name', 'Pet name is required').not().isEmpty(),
-  check('species', 'Pet species is required').not().isEmpty(),
-  check('breed', 'Pet breed is required').not().isEmpty(),
-  check('age', 'Pet age is required').isNumeric(),
-], petAuth, petController.updatePet); // Apply petAuth for userId handling
+router.put(
+  '/:id',
+  [
+    check('name', 'Pet name is required').not().isEmpty(),
+    check('species', 'Pet species is required').not().isEmpty(),
+    check('breed', 'Pet breed is required').not().isEmpty(),
+    check('age', 'Pet age is required').isNumeric(),
+  ],
+  petAuth,
+  petController.updatePet
+);
 
 // DELETE - Delete a specific pet by ID
-router.delete('/:id', petAuth, petController.deletePet); // Use petAuth to validate userId
+router.delete('/:id', petAuth, petController.deletePet);
 
 module.exports = router;
