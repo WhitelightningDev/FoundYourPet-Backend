@@ -14,6 +14,7 @@ const addOnRoutes = require('./routes/addOnRoutes');
 const packageRoutes = require('./routes/packageRoutes');
 const publicPetRoutes = require('./routes/publicPetRoutes');
 const cloudinary = require('cloudinary').v2;
+const emailRoutes = require("./routes/email");
 
 const app = express();
 
@@ -55,6 +56,7 @@ app.use((req, res, next) => {
 });
 
 // Routes
+app.use("/api/email", emailRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/pets/public', publicPetRoutes); // ✅ Public route (no auth)
 app.use('/api/pets', authenticate, petRoutes); // ✅ Authenticated

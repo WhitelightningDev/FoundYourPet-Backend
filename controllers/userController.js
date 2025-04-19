@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 // const bcrypt = require('bcrypt');
 const Pet = require("../models/Pet");
 const bcrypt = require('bcryptjs');
+const sendWelcomeEmail  = require("../services/mailService");
 
 const { validationResult } = require('express-validator');
 
@@ -36,18 +37,23 @@ exports.signUp = async (req, res) => {
       email,
       contact,
       password: hashedPassword,
-      address, // Store address here
+      address,
       privacyPolicy: true,
       termsConditions: true,
       agreement: true
     });
 
     await user.save();
+
+    // 🎉 Trigger welcome email after saving user
+    await sendWelcomeEmail(user.email, user.name);
+
     return res.status(201).json({ msg: 'User registered successfully!', user });
   } catch (err) {
     return errorHandler(res, err);
   }
 };
+
 
 
 exports.login = async (req, res) => {
