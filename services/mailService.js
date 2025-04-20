@@ -36,6 +36,7 @@ The Found Your Pet Team 🐾`;
         <li>Manage lost and found alerts</li>
         <li>Get support and tag replacements as part of our monthly care package</li>
       </ul>
+      <p>To login click here : < href="https://foundyourpet.co.za/login"> Login </p>
       <p>We're here to support you and your pets every step of the way!</p>
       <p>Best regards,<br/>The Found Your Pet Team 🐾</p>
     </div>
