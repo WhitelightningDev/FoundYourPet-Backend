@@ -15,13 +15,14 @@ const userSchema = new Schema({
     postalCode: { type: String, required: true },
     country: { type: String, required: true }
   },
-  isAdmin: { type: Boolean, default: false }, // <-- NEW FIELD
+  isAdmin: { type: Boolean, default: false },
   privacyPolicy: { type: Boolean, default: true },
   termsConditions: { type: Boolean, default: true },
-  agreement: { type: Boolean, default: true }
+  agreement: { type: Boolean, default: true },
+
+  // NEW MEMBERSHIP FIELDS
+  membershipActive: { type: Boolean, default: false },
+  membershipStartDate: { type: Date, default: null }
 });
 
-
-
-// Export the model correctly
 module.exports = mongoose.model('User', userSchema);

@@ -15,6 +15,8 @@ const packageRoutes = require('./routes/packageRoutes');
 const publicPetRoutes = require('./routes/publicPetRoutes');
 const cloudinary = require('cloudinary').v2;
 const emailRoutes = require("./routes/email");
+const paymentRoutes = require('./routes/payment');
+
 
 const app = express();
 
@@ -56,6 +58,7 @@ app.use((req, res, next) => {
 });
 
 // Routes
+app.use('/api/payment', paymentRoutes);
 app.use('/api/memberships', require('./routes/membershipRoutes'));
 app.use("/api/email", emailRoutes);
 app.use('/api/users', userRoutes);

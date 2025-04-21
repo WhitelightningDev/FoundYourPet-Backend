@@ -4,7 +4,8 @@ const bcrypt = require('bcryptjs');
 
 const AddOn = require('./models/AddOn');
 const Package = require('./models/Package');
-const User = require('./models/user'); // 👈 Import User model
+const Membership = require('./models/Membership'); // Make sure this exists
+const User = require('./models/user');
 
 dotenv.config();
 
@@ -21,31 +22,28 @@ const seedPackages = [
   {
     name: "Standard Tag Package",
     type: "standard",
-    basePrice: 120,
-    price: 190,
-    description: "Classic engraved QR tag with delivery, and profile access.",
+    price: 210, // ✅ Correct base price
+    description: "Classic engraved QR tag with delivery and pet profile access.",
     features: [
-      "25mm Aluminium Round Tag",
+      "25mm Nickel-Plated Tag (Rust-Proof)",
       "Engraved QR Code",
       "Delivery To Closest PUDO Locker",
       "Pet Profile Access"
     ]
-  },
+  }
+];
+
+const seedMemberships = [
   {
-    name: "Samsung Smart Tag Package",
-    type: "samsung",
-    basePrice: 499,
-    price: 499,
-    description: "Smart tracking with Samsung SmartThings app.",
-    features: ["Samsung SmartTag", "GPS tracking", "Device integration"]
-  },
-  {
-    name: "Apple AirTag Package",
-    type: "apple",
-    basePrice: 800,
-    price: 800,
-    description: "Seamless tracking via Apple Find My network.",
-    features: ["Apple AirTag", "Find My support", "Precision tracking"]
+    name: "Standard Support Membership",
+    price: 50, // ✅ Correct monthly fee
+    billingCycle: "monthly",
+    features: [
+      "Ongoing Pet Profile Hosting",
+      "Free Tag Replacement",
+      "Priority Support",
+      "Early Access to New Features"
+    ]
   }
 ];
 
@@ -65,7 +63,7 @@ const adminUser = {
   privacyPolicy: true,
   termsConditions: true,
   agreement: true,
-  isAdmin: true // Set the isAdmin flag to true
+  isAdmin: true
 };
 
 async function seedDatabase() {
@@ -73,14 +71,16 @@ async function seedDatabase() {
     await mongoose.connect(process.env.MONGO_URI);
     console.log('🔗 Connected to MongoDB');
 
-    // Clear and reseed AddOns and Packages
     await AddOn.deleteMany({});
     await Package.deleteMany({});
+    await Membership.deleteMany({}); // ✅ Reset memberships
+
     await AddOn.insertMany(seedAddOns);
     await Package.insertMany(seedPackages);
-    console.log('✅ AddOns and Packages seeded successfully!');
+    await Membership.insertMany(seedMemberships); // ✅ Insert membership
 
-    // Seed Admin user if not exists
+    console.log('✅ AddOns, Packages, and Memberships seeded successfully!');
+
     let existingAdmin = await User.findOne({ email: adminUser.email });
     if (!existingAdmin) {
       const hashedPassword = await bcrypt.hash(adminUser.password, 10);
@@ -88,7 +88,6 @@ async function seedDatabase() {
       existingAdmin = await User.create(adminUser);
       console.log('✅ Admin user created!');
     } else {
-      // Update isAdmin flag if the user is found but not an admin
       if (!existingAdmin.isAdmin) {
         existingAdmin.isAdmin = true;
         await existingAdmin.save();

@@ -8,25 +8,20 @@ const petSchema = new Schema({
   age: { type: Number, required: true },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 
-  // NEW FIELDS
   gender: { type: String, enum: ['Male', 'Female', 'Other'], default: 'Other' },
   photoUrl: { type: String },
   color: { type: String },
-  
-  // Allow empty values for tagType, defaulting to null if not provided
+
   tagType: { 
     type: String, 
     enum: ['Standard', 'Apple AirTag', 'Samsung SmartTag'], 
-    default: null,  // Allows tagType to be null or a valid enum value
+    default: null,
   },
-  membership: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Membership',
-    default: null
-  },
-  membershipStartDate: { type: Date },
-  
 
+  // MEMBERSHIP TRACKING
+  hasMembership: { type: Boolean, default: false },
+  membership: { type: mongoose.Schema.Types.ObjectId, ref: 'Membership', default: null },
+  membershipStartDate: { type: Date, default: null }
 });
 
 module.exports = mongoose.model("Pet", petSchema);

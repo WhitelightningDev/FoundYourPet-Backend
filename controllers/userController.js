@@ -75,19 +75,30 @@ exports.login = async (req, res) => {
       return res.status(400).json({ msg: 'Invalid credentials' });
     }
 
-    // ✅ Generate JWT with isAdmin included
-    const payload = { userId: user._id, isAdmin: user.isAdmin }; // Add isAdmin to the payload
+    const payload = {
+      userId: user._id,
+      isAdmin: user.isAdmin,
+    };
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
 
     return res.status(200).json({
       msg: 'Login successful',
-      user,
-      token, // Send the token to the frontend
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        isAdmin: user.isAdmin,
+        membershipActive: user.membershipActive || false, // include membership status
+        contact: user.contact,
+        address: user.address,
+      },
+      token,
     });
   } catch (err) {
     return errorHandler(res, err);
   }
 };
+
 
 
 // GET /api/admin/users (Retrieve all users, only accessible by admin)
@@ -164,16 +175,27 @@ exports.updateUser = async (req, res) => {
 
 exports.getCurrentUser = async (req, res) => {
   try {
-    // Make sure to fetch user data using the userId in req.user
     const user = await User.findById(req.user.userId).select('-password');
     if (!user) {
       return res.status(404).json({ msg: 'User not found' });
     }
-    return res.status(200).json(user);  // Return user data without password
+
+    return res.status(200).json({
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        isAdmin: user.isAdmin,
+        membershipActive: user.membershipActive || false,
+        contact: user.contact,
+        address: user.address,
+      }
+    });
   } catch (err) {
     return errorHandler(res, err);
   }
 };
+
 
 
 // DELETE /api/users/:id (Delete a user)
