@@ -30,18 +30,27 @@ const createCheckout = async (amountInCents, currency, userId, petIds, membershi
 };
 
 // Route to create a checkout session
+// Route to create a checkout session
 router.post('/createCheckout', async (req, res) => {
   const { userId, petIds, amountInCents, membership, packageType } = req.body;
 
   try {
+    // Check if the required fields are present
+    if (!userId || !petIds || !amountInCents || !membership || !packageType) {
+      return res.status(400).json({ success: false, message: "Missing required fields" });
+    }
+
+    // Create checkout URL using the helper function
     const checkoutUrl = await createCheckout(amountInCents, 'ZAR', userId, petIds, membership, packageType);
 
-    // Send the checkout URL to the frontend
+    // Return the checkout URL
     res.status(200).json({ checkout_url: checkoutUrl });
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Error creating checkout' });
+    console.error("Error in creating checkout:", err);
+    res.status(500).json({ success: false, message: 'Error creating checkout', error: err.message });
   }
 });
+
 
 // Route to confirm payment after checkout
 router.post('/pay', async (req, res) => {
