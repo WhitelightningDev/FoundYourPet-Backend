@@ -19,6 +19,13 @@ const petSchema = new Schema({
     enum: ['Standard', 'Apple AirTag', 'Samsung SmartTag'], 
     default: null,  // Allows tagType to be null or a valid enum value
   },
+  membership: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Membership',
+    default: null
+  },
+  membershipStartDate: { type: Date },
+  
 
 });
 

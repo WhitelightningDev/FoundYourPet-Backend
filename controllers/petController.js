@@ -43,7 +43,9 @@ exports.createPet = async (req, res) => {
     allergies,
     medicalConditions,
     medications,
+    membershipId, // New field
   } = req.body;
+  
 
   const userId = req.userId;
 
@@ -76,7 +78,10 @@ exports.createPet = async (req, res) => {
         medications,
         photoUrl,
         userId,
+        membership: membershipId || null,
+        membershipStartDate: membershipId ? new Date() : null
       });
+      
 
       await newPet.save();
       return res.status(201).json({ msg: "Pet added successfully", pet: newPet });

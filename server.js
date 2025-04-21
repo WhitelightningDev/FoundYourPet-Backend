@@ -56,6 +56,7 @@ app.use((req, res, next) => {
 });
 
 // Routes
+app.use('/api/memberships', require('./routes/membershipRoutes'));
 app.use("/api/email", emailRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/pets/public', publicPetRoutes); // ✅ Public route (no auth)
