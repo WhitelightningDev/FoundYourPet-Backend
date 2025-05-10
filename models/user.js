@@ -22,7 +22,10 @@ const userSchema = new Schema({
 
   // NEW MEMBERSHIP FIELDS
   membershipActive: { type: Boolean, default: false },
-  membershipStartDate: { type: Date, default: null }
+  membershipStartDate: { type: Date, default: null },
+
+  resetPasswordToken: { type: String },
+  resetPasswordExpires: { type: Date },
 });
 
 module.exports = mongoose.model('User', userSchema);

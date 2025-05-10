@@ -85,5 +85,14 @@ router.delete('/:id', auth, (req, res, next) => {
 // ✅ Admin-only route to get a user with their pets
 router.get('/users/:id/with-pets', auth, admin, userController.getUserWithPets);
 
+// Request password reset
+router.post('/password-reset', [
+  check('email', 'Please include a valid email').isEmail(),
+], userController.requestPasswordReset);
+
+// Reset password using token
+router.post('/password-reset/:token', [
+  check('password', 'Password must be at least 6 characters long').isLength({ min: 6 }),
+], userController.resetPassword);
 
 module.exports = router;

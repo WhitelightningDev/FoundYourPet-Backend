@@ -58,6 +58,7 @@ app.use((req, res, next) => {
 });
 
 // Routes
+
 app.use('/api/payment', paymentRoutes);
 app.use('/api/memberships', require('./routes/membershipRoutes'));
 app.use("/api/email", emailRoutes);
@@ -91,7 +92,7 @@ if (!jwtSecret) {
 }
 
 // Start server
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
