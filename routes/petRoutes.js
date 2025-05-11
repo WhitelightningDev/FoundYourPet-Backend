@@ -48,6 +48,10 @@ router.put(
   petController.updatePet // Call the controller directly
 );
 
+router.post('/updateMembership', petController.updatePetMembership);
+
+
+
 // DELETE - Delete a specific pet by ID
 router.delete('/:id', petAuth, petController.deletePet);
 

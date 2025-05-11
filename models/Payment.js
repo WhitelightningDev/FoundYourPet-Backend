@@ -5,7 +5,7 @@ const paymentSchema = new mongoose.Schema({
   petIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Pet' }],
   amountInCents: { type: Number, required: true },
   currency: { type: String, default: 'ZAR' },
-  membership: { type: Boolean, default: false },
+  membership: { type: mongoose.Schema.Types.ObjectId, ref: 'Membership', default: null },
   packageType: { type: String },
   status: { type: String, enum: ['pending', 'successful', 'failed'], default: 'pending' },
   yocoChargeId: { type: String },

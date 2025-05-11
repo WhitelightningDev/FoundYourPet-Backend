@@ -28,4 +28,5 @@ const userSchema = new Schema({
   resetPasswordExpires: { type: Date },
 });
 
-module.exports = mongoose.model('User', userSchema);
+// Prevent OverwriteModelError by checking if model exists
+module.exports = mongoose.models.User || mongoose.model('User', userSchema);

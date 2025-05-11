@@ -78,7 +78,7 @@ exports.createPet = async (req, res) => {
         medications,
         photoUrl,
         userId,
-        membership: membershipId || null,
+        hasMembership: membershipId ? true : false,
         membershipStartDate: membershipId ? new Date() : null
       });
       
@@ -181,5 +181,28 @@ exports.getPublicPetProfile = async (req, res) => {
     res.json({ pet, owner });
   } catch (err) {
     return errorHandler(res, err);
+  }
+};
+
+exports.updatePetMembership = async (req, res) => {
+  const { petId, membership } = req.body;
+
+  try {
+    const pet = await Pet.findById(petId);
+
+    if (!pet) {
+      return res.status(404).json({ success: false, message: "Pet not found" });
+    }
+
+    // Set membership fields
+    pet.membership = membership;
+    pet.membershipStartDate = new Date();
+    pet.hasMembership = !!membership; // <-- this will set it to true if membership is present
+
+    await pet.save();
+
+    res.status(200).json({ success: true, pet });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 };
