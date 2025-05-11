@@ -19,7 +19,6 @@ const paymentRoutes = require('./routes/payment');
 
 const Payment = require('./models/Payment');
 const Pet = require('./models/Pet');
-const User = require('./models/User');
 const Membership = require('./models/Membership');
 
 const app = express();
