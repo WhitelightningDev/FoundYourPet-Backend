@@ -2,7 +2,7 @@ const axios = require('axios');
 const Payment = require('../models/Payment');
 const Pet = require('../models/Pet');
 const Membership = require('../models/Membership');
-
+const User = require('../models/User');
 
 
 
@@ -75,10 +75,9 @@ const createCheckoutSession = async (req, res) => {
 
 
 const confirmPayment = async (req, res) => {
-  const { token, amountInCents, userId, petIds, membershipId } = req.body;
+  const { token, amountInCents, userId, petIds, membershipId, paymentId } = req.body;
 
   try {
-    // 1. Charge the card using Yoco
     const response = await axios.post('https://online.yoco.com/v1/charges', {
       token,
       amount_in_cents: amountInCents,
@@ -90,54 +89,49 @@ const confirmPayment = async (req, res) => {
       }
     });
 
-    // 2. Proceed only if payment succeeded
     if (response.data.status === 'successful') {
-      console.log("Incoming body at /payment/success:", req.body);
+      // Update payment by ID
+      await Payment.findByIdAndUpdate(paymentId, {
+        status: 'successful',
+        yocoChargeId: response.data.id
+      });
 
-      // 3. Update the payment record to mark as successful
-      await Payment.findOneAndUpdate(
-        { userId, amountInCents }, // matching by user and amount, assuming these are unique per payment
-        { status: 'successful', yocoChargeId: response.data.id }
-      );
-
-      // 4. Check that the membership exists
       const membership = await Membership.findById(membershipId);
       if (!membership) {
         return res.status(400).json({ success: false, message: 'Invalid membership ID' });
       }
 
-      // 5. Update all pets with membership info (only pets that belong to the current user)
       await Pet.updateMany(
-        { _id: { $in: petIds }, userId: userId },
+        { _id: { $in: petIds }, userId },
         {
           $set: {
-            hasMembership: true,  // Set pet membership as true
-            membership: membership._id,  // Link pet to the membership
-            membershipStartDate: new Date(),  // Set the start date of membership
-            tagType: "standard",  // Assuming all new pets get the standard tag
+            hasMembership: true,
+            membership: membership._id,
+            membershipStartDate: new Date(),
+            tagType: "standard",
           }
         }
       );
 
-      // 6. Update the user as well
       await User.findByIdAndUpdate(userId, {
-        membershipActive: true,  // Mark user's membership as active
-        membershipStartDate: new Date(),  // Set the user's membership start date
+        membershipActive: true,
+        membershipStartDate: new Date(),
       });
 
-      res.status(200).json({
+      return res.status(200).json({
         success: true,
-        message: 'Payment and pet membership update successful',
+        message: 'Payment and membership updated successfully',
         data: response.data,
       });
     } else {
-      res.status(400).json({ success: false, message: 'Payment failed', data: response.data });
+      return res.status(400).json({ success: false, message: 'Payment failed', data: response.data });
     }
   } catch (error) {
     console.error('Payment processing error:', error?.response?.data || error.message);
-    res.status(500).json({ success: false, message: 'Payment processing failed' });
+    return res.status(500).json({ success: false, message: 'Payment processing failed' });
   }
 };
+
 
 
 const getPaymentDetails = async (req, res) => {

@@ -6,21 +6,23 @@ const petSchema = new Schema({
   species: { type: String, required: true },
   breed: { type: String, required: true },
   age: { type: Number, required: true },
-  color: {type: String, required: false},
+  color: { type: String },
+
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 
   gender: { type: String, enum: ['Male', 'Female', 'Other'], default: 'Other' },
   photoUrl: { type: String },
-  color: { type: String },
 
-  tagType: { 
-    type: String, 
-    enum: ['Standard', 'Apple AirTag', 'Samsung SmartTag'], 
+  tagType: {
+    type: String,
+    enum: ['Standard', 'Apple AirTag', 'Samsung SmartTag'],
     default: null,
   },
 
-  // MEMBERSHIP TRACKING
-  hasMembership: { type: Boolean, default: false },
+  // TAG TRACKING
+  hasTag: { type: Boolean, default: false }, // <- new field
+
+  // MEMBERSHIP INFO (if still relevant)
   membership: { type: mongoose.Schema.Types.ObjectId, ref: 'Membership', default: null },
   membershipStartDate: { type: Date, default: null }
 });

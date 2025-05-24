@@ -17,11 +17,8 @@ const uploadImageToCloudinary = (fileBuffer) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       { folder: 'pet_images' },
       (error, result) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve(result.secure_url);
-        }
+        if (error) reject(error);
+        else resolve(result.secure_url);
       }
     );
     stream.pipe(uploadStream);
@@ -30,33 +27,8 @@ const uploadImageToCloudinary = (fileBuffer) => {
 
 // CREATE Pet
 exports.createPet = async (req, res) => {
-  let {
-    name,
-    species,
-    breed,
-    age,
-    gender,
-    spayedNeutered,
-    size,
-    tagType,
-    vaccinations,
-    allergies,
-    medicalConditions,
-    medications,
-    membershipId, // New field
-  } = req.body;
-  
-
+  const { name, species, breed, age, gender, color, tagType, membershipId } = req.body;
   const userId = req.userId;
-
-  // Validate optional fields
-  if (!['Small', 'Medium', 'Large'].includes(size)) size = null;
-  if (!['Standard', 'Apple AirTag', 'Samsung SmartTag'].includes(tagType)) tagType = null;
-  spayedNeutered = spayedNeutered === 'true' || spayedNeutered === true;
-  vaccinations = vaccinations || [];
-  allergies = allergies || [];
-  medicalConditions = medicalConditions || [];
-  medications = medications || [];
 
   try {
     const errors = validationResult(req);
@@ -69,30 +41,24 @@ exports.createPet = async (req, res) => {
         breed,
         age,
         gender,
-        spayedNeutered,
-        size,
-        tagType,
-        vaccinations,
-        allergies,
-        medicalConditions,
-        medications,
+        color: color || null,
+        tagType: ['Standard', 'Apple AirTag', 'Samsung SmartTag'].includes(tagType) ? tagType : null,
         photoUrl,
         userId,
         hasMembership: membershipId ? true : false,
+        membership: membershipId || null,
         membershipStartDate: membershipId ? new Date() : null
       });
-      
 
       await newPet.save();
       return res.status(201).json({ msg: "Pet added successfully", pet: newPet });
     };
 
-    // Upload photo if file is present
     if (req.file) {
-      const photoUrl = await uploadImageToCloudinary(req.file.buffer); // Upload image and get the URL
-      await createPetInDB(photoUrl); // Pass URL to create the pet in DB
+      const photoUrl = await uploadImageToCloudinary(req.file.buffer);
+      await createPetInDB(photoUrl);
     } else {
-      await createPetInDB(); // Proceed without photo
+      await createPetInDB();
     }
 
   } catch (err) {
@@ -109,12 +75,36 @@ exports.updatePet = async (req, res) => {
     const pet = await Pet.findOne({ _id: id, userId });
     if (!pet) return res.status(404).json({ msg: 'Pet not found or not authorized' });
 
-    Object.assign(pet, req.body); // Update with new values from req.body
+    const {
+      name,
+      species,
+      breed,
+      age,
+      gender,
+      color,
+      tagType,
+      membershipId
+    } = req.body;
 
-    // Upload new image to Cloudinary if a new file is provided
+    if (name) pet.name = name;
+    if (species) pet.species = species;
+    if (breed) pet.breed = breed;
+    if (age) pet.age = age;
+    if (gender) pet.gender = gender;
+    if (color !== undefined) pet.color = color;
+    if (tagType && ['Standard', 'Apple AirTag', 'Samsung SmartTag'].includes(tagType)) {
+      pet.tagType = tagType;
+    }
+
+    if (membershipId) {
+      pet.membership = membershipId;
+      pet.hasMembership = true;
+      pet.membershipStartDate = new Date();
+    }
+
     if (req.file) {
-      const photoUrl = await uploadImageToCloudinary(req.file.buffer); // Upload the new image
-      pet.photoUrl = photoUrl; // Update the photo URL
+      const photoUrl = await uploadImageToCloudinary(req.file.buffer);
+      pet.photoUrl = photoUrl;
     }
 
     await pet.save();
@@ -169,9 +159,7 @@ exports.getPublicPetProfile = async (req, res) => {
   try {
     const pet = await Pet.findById(req.params.petId)
       .populate('userId', 'firstName lastName email contact')
-      .select(
-        'name species breed age gender color photoUrl tagType engravingInfo tagSerial microchipNumber'
-      );
+      .select('name species breed age gender color photoUrl tagType');
 
     if (!pet) return res.status(404).json({ msg: 'Pet not found' });
 
@@ -184,25 +172,21 @@ exports.getPublicPetProfile = async (req, res) => {
   }
 };
 
+// Manually update membership of a pet
 exports.updatePetMembership = async (req, res) => {
   const { petId, membership } = req.body;
 
   try {
     const pet = await Pet.findById(petId);
+    if (!pet) return res.status(404).json({ success: false, message: "Pet not found" });
 
-    if (!pet) {
-      return res.status(404).json({ success: false, message: "Pet not found" });
-    }
-
-    // Set membership fields
     pet.membership = membership;
+    pet.hasMembership = !!membership;
     pet.membershipStartDate = new Date();
-    pet.hasMembership = !!membership; // <-- this will set it to true if membership is present
 
     await pet.save();
-
     res.status(200).json({ success: true, pet });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    return errorHandler(res, err);
   }
 };
