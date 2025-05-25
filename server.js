@@ -20,6 +20,7 @@ const paymentRoutes = require('./routes/payment');
 const Payment = require('./models/Payment');
 const Pet = require('./models/Pet');
 const Membership = require('./models/Membership');
+const userController = require('./controllers/userController')
 
 const app = express();
 
@@ -119,6 +120,8 @@ app.post("/api/payment/webhook", async (req, res) => {
 
 
 // ✅ Route registration
+app.post('/api/users/activate-membership', userController.activateMembership);
+
 app.use('/api/payment', paymentRoutes);
 app.use('/api/memberships', require('./routes/membershipRoutes'));
 app.use("/api/email", emailRoutes);

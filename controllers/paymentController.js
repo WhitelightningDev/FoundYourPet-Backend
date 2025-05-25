@@ -77,6 +77,10 @@ const createCheckoutSession = async (req, res) => {
 const confirmPayment = async (req, res) => {
   const { token, amountInCents, userId, petIds, membershipId, paymentId } = req.body;
 
+  if (!token || !amountInCents || !userId || !petIds || !membershipId || !paymentId) {
+    return res.status(400).json({ success: false, message: 'Missing required payment fields' });
+  }
+
   try {
     const response = await axios.post('https://online.yoco.com/v1/charges', {
       token,
@@ -90,33 +94,49 @@ const confirmPayment = async (req, res) => {
     });
 
     if (response.data.status === 'successful') {
-      // Update payment by ID
-      await Payment.findByIdAndUpdate(paymentId, {
+      // Update payment record
+      const paymentUpdate = await Payment.findByIdAndUpdate(paymentId, {
         status: 'successful',
         yocoChargeId: response.data.id
-      });
+      }, { new: true });
 
+      if (!paymentUpdate) {
+        console.error('Payment not found or failed to update:', paymentId);
+        return res.status(404).json({ success: false, message: 'Payment record not found' });
+      }
+
+      // Confirm membership exists
       const membership = await Membership.findById(membershipId);
       if (!membership) {
         return res.status(400).json({ success: false, message: 'Invalid membership ID' });
       }
 
-      await Pet.updateMany(
+      // Update pets with membership info and correct tagType casing
+      const petUpdateResult = await Pet.updateMany(
         { _id: { $in: petIds }, userId },
         {
           $set: {
             hasMembership: true,
             membership: membership._id,
             membershipStartDate: new Date(),
-            tagType: "standard",
+            tagType: "Standard",  // Correct casing here
           }
         }
       );
 
-      await User.findByIdAndUpdate(userId, {
+      if (petUpdateResult.modifiedCount === 0) {
+        console.warn('No pets were updated with membership info for user:', userId);
+      }
+
+      // Update user membership status
+      const userUpdate = await User.findByIdAndUpdate(userId, {
         membershipActive: true,
         membershipStartDate: new Date(),
-      });
+      }, { new: true });
+
+      if (!userUpdate) {
+        console.warn('User not found or failed to update membership status:', userId);
+      }
 
       return res.status(200).json({
         success: true,

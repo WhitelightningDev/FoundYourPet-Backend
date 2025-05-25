@@ -6,6 +6,7 @@ const AddOn = require('./models/AddOn');
 const Package = require('./models/Package');
 const Membership = require('./models/Membership'); // Make sure this exists
 const User = require('./models/user');
+const Pet = require('./models/Pet'); // Import your Pet model
 
 dotenv.config();
 
@@ -22,7 +23,7 @@ const seedPackages = [
   {
     name: "Standard Tag Package",
     type: "standard",
-    price: 210, // ✅ Correct base price
+    price: 210,
     description: "Classic engraved QR tag with delivery and pet profile access.",
     features: [
       "25mm Nickel-Plated Tag (Rust-Proof)",
@@ -36,7 +37,7 @@ const seedPackages = [
 const seedMemberships = [
   {
     name: "Standard Support Membership",
-    price: 50, // ✅ Correct monthly fee
+    price: 50,
     billingCycle: "monthly",
     features: [
       "Ongoing Pet Profile Hosting",
@@ -66,21 +67,43 @@ const adminUser = {
   isAdmin: true
 };
 
+const seedPetsTemplate = [
+  {
+    name: "PurrPurr",
+    species: "Cat",
+    breed: "Maincoon",
+    age: 12,
+    color: "Black",
+    gender: "Female",
+    photoUrl: "https://res.cloudinary.com/dyzzxilmr/image/upload/v1748113897/pet_images/j0ovk994lhl9gmjgsgny.jpg",
+    tagType: "Standard",
+    hasTag: true,
+    tagPurchaseDate: new Date('2023-01-01'),
+    // userId will be assigned dynamically below
+  },
+  // Add more pets if needed
+];
+
 async function seedDatabase() {
   try {
     await mongoose.connect(process.env.MONGO_URI);
     console.log('🔗 Connected to MongoDB');
 
+    // Clear collections
     await AddOn.deleteMany({});
     await Package.deleteMany({});
-    await Membership.deleteMany({}); // ✅ Reset memberships
+    await Membership.deleteMany({});
+    await Pet.deleteMany({});
+    await User.deleteMany({ email: adminUser.email }); // Optional: delete existing admin to avoid conflicts
 
+    // Insert seed data
     await AddOn.insertMany(seedAddOns);
     await Package.insertMany(seedPackages);
-    await Membership.insertMany(seedMemberships); // ✅ Insert membership
+    await Membership.insertMany(seedMemberships);
 
     console.log('✅ AddOns, Packages, and Memberships seeded successfully!');
 
+    // Check for existing admin user
     let existingAdmin = await User.findOne({ email: adminUser.email });
     if (!existingAdmin) {
       const hashedPassword = await bcrypt.hash(adminUser.password, 10);
@@ -97,7 +120,16 @@ async function seedDatabase() {
       }
     }
 
-    process.exit();
+    // Assign the userId dynamically to each pet and insert
+    const seedPets = seedPetsTemplate.map(pet => ({
+      ...pet,
+      userId: existingAdmin._id
+    }));
+
+    await Pet.insertMany(seedPets);
+    console.log('✅ Pets seeded successfully!');
+
+    process.exit(0);
   } catch (err) {
     console.error('❌ Seeding failed:', err);
     process.exit(1);

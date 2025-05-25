@@ -95,4 +95,9 @@ router.post('/password-reset/:token', [
   check('password', 'Password must be at least 6 characters long').isLength({ min: 6 }),
 ], userController.resetPassword);
 
+// Add this in routes/userRoutes.js (near other routes)
+
+router.post('/activate-membership', auth, userController.activateMembership);
+
+
 module.exports = router;

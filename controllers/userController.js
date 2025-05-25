@@ -90,6 +90,7 @@ exports.login = async (req, res) => {
         name: user.name,
         email: user.email,
         isAdmin: user.isAdmin,
+        membershipStartDate: user.membershipStartDate || false,
         membershipActive: user.membershipActive || false, // include membership status
         contact: user.contact,
         address: user.address,
@@ -188,6 +189,7 @@ exports.getCurrentUser = async (req, res) => {
         name: user.name,
         email: user.email,
         isAdmin: user.isAdmin,
+        membershipStartDate: user.membershipStartDate, 
         membershipActive: user.membershipActive || false,
         contact: user.contact,
         address: user.address,
@@ -316,5 +318,26 @@ exports.resetPassword = async (req, res) => {
     return res.status(200).json({ msg: 'Password has been reset' });
   } catch (err) {
     return errorHandler(res, err);
+  }
+};
+
+exports.activateMembership = async (req, res) => {
+  try {
+    const { userId } = req.body; // pass userId from frontend or payment service webhook
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" });
+    }
+
+    user.membershipActive = true;
+    user.membershipStartDate = new Date();
+
+    await user.save();
+
+    return res.status(200).json({ msg: "Membership activated", user });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ msg: "Server error" });
   }
 };
