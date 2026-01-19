@@ -3,8 +3,8 @@ const jwt = require('jsonwebtoken');
 // const bcrypt = require('bcrypt');
 const Pet = require("../models/Pet");
 const bcrypt = require('bcryptjs');
-const sendWelcomeEmail  = require("../services/mailService");
-const nodemailer = require('nodemailer');
+const crypto = require('crypto');
+const sendEmail = require("../services/mailService");
 
 
 const { validationResult } = require('express-validator');
@@ -48,7 +48,7 @@ exports.signUp = async (req, res) => {
     await user.save();
 
     // 🎉 Trigger welcome email after saving user
-    await sendWelcomeEmail(user.email, user.name);
+    await sendEmail(user.email);
 
     return res.status(201).json({ msg: 'User registered successfully!', user });
   } catch (err) {
@@ -228,7 +228,7 @@ exports.getUserWithPets = async (req, res) => {
     const userId = req.params.id;
 
     // Fetch the user
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     // Fetch pets associated with the user
@@ -263,25 +263,15 @@ exports.requestPasswordReset = async (req, res) => {
     await user.save();
 
     // Send email with reset token
-    const resetUrl = `http://yourfrontend.com/reset-password/${resetToken}`;
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
 
-    // Setup mail transporter
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-
-    const mailOptions = {
-      to: email,
-      from: 'no-reply@yourapp.com',
-      subject: 'Password Reset Request',
-      text: `You requested a password reset. Please click the link to reset your password: ${resetUrl}`,
-    };
-
-    await transporter.sendMail(mailOptions);
+    await sendEmail(
+      email,
+      'Password Reset Request',
+      `You requested a password reset. Use this link to reset your password: ${resetUrl}`,
+      `<p>You requested a password reset.</p><p><a href="${resetUrl}">Click here to reset your password</a></p>`
+    );
     return res.status(200).json({ msg: 'Password reset link sent' });
   } catch (err) {
     return errorHandler(res, err);
@@ -323,7 +313,10 @@ exports.resetPassword = async (req, res) => {
 
 exports.activateMembership = async (req, res) => {
   try {
-    const { userId } = req.body; // pass userId from frontend or payment service webhook
+    const userId = req.user?.isAdmin && req.body?.userId ? req.body.userId : req.user?.userId;
+    if (!userId) {
+      return res.status(400).json({ msg: "Missing user context" });
+    }
 
     const user = await User.findById(userId);
     if (!user) {

@@ -12,6 +12,11 @@ const petSchema = new Schema({
   gender: { type: String, enum: ['Male', 'Female', 'Other'], default: 'Other' },
   photoUrl: { type: String },
 
+  // MEMBERSHIP INFO (optional; set on checkout/activation)
+  hasMembership: { type: Boolean, default: false },
+  membership: { type: mongoose.Schema.Types.ObjectId, ref: 'Membership', default: null },
+  membershipStartDate: { type: Date, default: null },
+
   // TAG INFO (specific to this pet)
   tagType: {
     type: String,

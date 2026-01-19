@@ -54,6 +54,9 @@ router.get('/', auth, admin, userController.getAllUsers);
  */
 router.get('/me', auth, userController.getCurrentUser);
 
+// ✅ Admin-only route to get a user with their pets
+router.get('/:id/with-pets', auth, admin, userController.getUserWithPets);
+
 /**
  * @route   GET /api/users/:id
  * @desc    Get user by ID (admin only)
@@ -81,9 +84,6 @@ router.delete('/:id', auth, (req, res, next) => {
   }
   next();
 }, userController.deleteUser);
-
-// ✅ Admin-only route to get a user with their pets
-router.get('/users/:id/with-pets', auth, admin, userController.getUserWithPets);
 
 // Request password reset
 router.post('/password-reset', [

@@ -2,14 +2,12 @@ require('dotenv').config(); // Load environment variables from .env file
 
 const express = require('express');
 const mongoose = require('mongoose');
-const bodyParser = require('body-parser');
 const cors = require('cors');
 const path = require('path');
 
 const userRoutes = require('./routes/userRoutes');
 const petRoutes = require('./routes/petRoutes');
 const authenticate = require('./middleware/auth');
-const admin = require('./middleware/admin');
 const addOnRoutes = require('./routes/addOnRoutes');
 const packageRoutes = require('./routes/packageRoutes');
 const publicPetRoutes = require('./routes/publicPetRoutes');
@@ -19,10 +17,28 @@ const paymentRoutes = require('./routes/payment');
 
 const Payment = require('./models/Payment');
 const Pet = require('./models/Pet');
-const Membership = require('./models/Membership');
-const userController = require('./controllers/userController')
+const User = require('./models/User');
 
 const app = express();
+
+app.disable('x-powered-by');
+
+// ✅ Required env vars
+for (const key of ['MONGO_URI', 'JWT_SECRET']) {
+  if (!process.env[key]) {
+    console.error(`${key} is not defined in environment variables`);
+    process.exit(1);
+  }
+}
+
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled promise rejection:', err);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err);
+  process.exit(1);
+});
 
 // ✅ Cloudinary configuration
 cloudinary.config({
@@ -31,15 +47,14 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// ✅ Middleware for rawBody parsing (required for webhook validation)
+// ✅ Middleware for JSON parsing (rawBody captured for webhook validation only)
 app.use(express.json({
   limit: "10mb",
   verify: (req, res, buf) => {
-    req.rawBody = buf;
+    if (req.originalUrl === '/api/payment/webhook') req.rawBody = buf;
   }
 }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-app.use(bodyParser.json());
 
 // ✅ CORS setup
 app.use(cors());
@@ -48,10 +63,7 @@ app.use(cors());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ✅ MongoDB connection
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
+mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB connected'))
   .catch(err => {
     console.error('MongoDB connection error:', err.message);
@@ -76,14 +88,14 @@ app.post("/api/payment/webhook", async (req, res) => {
 
     try {
       const {
-        metadata: { userId, pets, membershipId },
+        metadata: { userId, pets, membershipId, paymentId },
         amount,
         id: yocoChargeId
       } = chargeData;
 
       // ✅ Update Payment record
       await Payment.findOneAndUpdate(
-        { userId, amountInCents: amount },
+        paymentId ? { _id: paymentId } : { userId, amountInCents: amount },
         { status: 'successful', yocoChargeId }
       );
 
@@ -95,7 +107,7 @@ app.post("/api/payment/webhook", async (req, res) => {
             hasMembership: true,
             membership: membershipId,
             membershipStartDate: new Date(),
-            tagType: "standard"
+            tagType: "Standard"
           }
         }
       );
@@ -120,8 +132,6 @@ app.post("/api/payment/webhook", async (req, res) => {
 
 
 // ✅ Route registration
-app.post('/api/users/activate-membership', userController.activateMembership);
-
 app.use('/api/payment', paymentRoutes);
 app.use('/api/memberships', require('./routes/membershipRoutes'));
 app.use("/api/email", emailRoutes);
@@ -146,13 +156,6 @@ app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ msg: 'Something went wrong' });
 });
-
-// ✅ JWT_SECRET check
-const jwtSecret = process.env.JWT_SECRET;
-if (!jwtSecret) {
-  console.error('JWT_SECRET is not defined in environment variables');
-  process.exit(1);
-}
 
 // ✅ Start server
 const PORT = process.env.PORT || 5001;

@@ -53,6 +53,7 @@ const createCheckoutSession = async (req, res) => {
         userId,
         packageType,
         membershipId: newMembership._id,
+        paymentId: payment._id,
         pets: petIds,
       },
       billingDetails,
@@ -161,8 +162,8 @@ const getPaymentDetails = async (req, res) => {
     const payment = await Payment.findById(paymentId);
     if (!payment) return res.status(404).json({ success: false, message: "Payment not found" });
 
-    const user = await User.findById(payment.userId).select("firstName lastName email");
-    const pets = await Pet.find({ _id: { $in: payment.petIds } }).select("name breed species size hasMembership");
+    const user = await User.findById(payment.userId).select("name surname email");
+    const pets = await Pet.find({ _id: { $in: payment.petIds } }).select("name breed species hasMembership");
     const membership = await Membership.findById(payment.membership);
 
     res.status(200).json({

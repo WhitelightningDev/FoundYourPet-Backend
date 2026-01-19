@@ -15,6 +15,7 @@ module.exports = function (req, res, next) {
 
     // Attach decoded data (userId and isAdmin) to the request object
     req.user = decoded;
+    req.userId = decoded.userId;
 
     // Continue to the next middleware or route handler
     next();

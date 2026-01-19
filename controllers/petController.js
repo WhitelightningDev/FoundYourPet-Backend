@@ -1,6 +1,5 @@
 const Pet = require('../models/Pet');
 const { validationResult } = require('express-validator');
-const User = require('../models/User');
 const streamifier = require('streamifier');
 const cloudinary = require('cloudinary').v2;
 
@@ -158,7 +157,7 @@ exports.getPetById = async (req, res) => {
 exports.getPublicPetProfile = async (req, res) => {
   try {
     const pet = await Pet.findById(req.params.petId)
-      .populate('userId', 'firstName lastName email contact')
+      .populate('userId', 'name surname email contact')
       .select('name species breed age gender color photoUrl tagType');
 
     if (!pet) return res.status(404).json({ msg: 'Pet not found' });
