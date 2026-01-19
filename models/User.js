@@ -30,3 +30,4 @@ const userSchema = new Schema({
 
 // Prevent OverwriteModelError by checking if model exists
 module.exports = mongoose.models.User || mongoose.model('User', userSchema);
+

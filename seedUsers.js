@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt'); // To hash passwords before saving
-const User = require('./models/user');
+const User = require('./models/User');
 
 // Connect to MongoDB (replace with your actual MongoDB URI)
 mongoose.connect('mongodb://localhost:27017/yourDatabase', {

@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const AddOn = require('./models/AddOn');
 const Package = require('./models/Package');
 const Membership = require('./models/Membership'); // Make sure this exists
-const User = require('./models/user');
+const User = require('./models/User');
 const Pet = require('./models/Pet'); // Import your Pet model
 
 dotenv.config();
