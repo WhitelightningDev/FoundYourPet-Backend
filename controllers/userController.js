@@ -47,12 +47,32 @@ exports.signUp = async (req, res) => {
 
     await user.save();
 
-    // 🎉 Trigger signup success email (do not block signup response)
+    const backendUrl = (process.env.BACKEND_URL || 'https://foundyourpet-backend.onrender.com').toString().replace(/\/+$/, '');
+    const verificationToken = crypto.randomBytes(24).toString('hex');
+    const verificationHash = crypto.createHash('sha256').update(verificationToken).digest('hex');
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    await User.updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          emailVerificationTokenHash: verificationHash,
+          emailVerificationExpires: verificationExpires,
+          verificationEmailSentAt: new Date(),
+          emailVerified: false,
+        },
+      }
+    );
+
+    const verifyUrl = `${backendUrl}/api/users/verify-email/${verificationToken}`;
+
+    // 🎉 Trigger signup email in background (do not block signup response)
     setImmediate(async () => {
       try {
         await sendSignupSuccessEmail({
           to: user.email,
           name: user.name || 'there',
+          verifyUrl,
         });
       } catch (emailError) {
         console.warn("Signup email failed:", emailError?.message || emailError);
@@ -78,6 +98,87 @@ exports.signUp = async (req, res) => {
     });
   } catch (err) {
     return errorHandler(res, err);
+  }
+};
+
+exports.resendVerification = async (req, res) => {
+  try {
+    const email = (req.body?.email || '').toString().trim().toLowerCase();
+    if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
+
+    const user = await User.findOne({ email });
+    // Always respond 200 to avoid leaking whether an email exists.
+    if (!user) return res.status(200).json({ success: true, message: 'If an account exists, we sent a verification email.' });
+
+    if (user.emailVerified) {
+      return res.status(200).json({ success: true, message: 'Email already verified.' });
+    }
+
+    const lastSentAt = user.verificationEmailSentAt ? new Date(user.verificationEmailSentAt).getTime() : 0;
+    const nowMs = Date.now();
+    if (lastSentAt && nowMs - lastSentAt < 60_000) {
+      return res.status(429).json({ success: false, message: 'Please wait a minute before resending.' });
+    }
+
+    const backendUrl = (process.env.BACKEND_URL || 'https://foundyourpet-backend.onrender.com').toString().replace(/\/+$/, '');
+    const verificationToken = crypto.randomBytes(24).toString('hex');
+    const verificationHash = crypto.createHash('sha256').update(verificationToken).digest('hex');
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await User.updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          emailVerificationTokenHash: verificationHash,
+          emailVerificationExpires: verificationExpires,
+          verificationEmailSentAt: new Date(),
+          emailVerified: false,
+        },
+      }
+    );
+
+    const verifyUrl = `${backendUrl}/api/users/verify-email/${verificationToken}`;
+
+    await sendSignupSuccessEmail({
+      to: user.email,
+      name: user.name || 'there',
+      verifyUrl,
+    });
+
+    return res.status(200).json({ success: true, message: 'Verification email sent.' });
+  } catch (err) {
+    return errorHandler(res, err, 'Failed to send verification email');
+  }
+};
+
+exports.verifyEmail = async (req, res) => {
+  try {
+    const token = (req.params?.token || '').toString().trim();
+    if (!token) return res.status(400).send('Missing token');
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const user = await User.findOne({
+      emailVerificationTokenHash: tokenHash,
+      emailVerificationExpires: { $gt: new Date() },
+    });
+
+    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').toString().replace(/\/+$/, '');
+
+    if (!user) {
+      return res.redirect(302, `${frontendUrl}/login?verified=0`);
+    }
+
+    await User.updateOne(
+      { _id: user._id },
+      {
+        $set: { emailVerified: true },
+        $unset: { emailVerificationTokenHash: '', emailVerificationExpires: '' },
+      }
+    );
+
+    return res.redirect(302, `${frontendUrl}/login?verified=1`);
+  } catch (err) {
+    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').toString().replace(/\/+$/, '');
+    return res.redirect(302, `${frontendUrl}/login?verified=0`);
   }
 };
 

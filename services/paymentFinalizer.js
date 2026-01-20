@@ -162,7 +162,6 @@ const finalizeSuccessfulPayment = async ({ paymentId, yocoChargeId = null, metad
     let effectivePetIds = petIdsFromPayment.length ? petIdsFromPayment : petIdsFromMetadata;
 
     if ((!effectivePetIds || effectivePetIds.length === 0) && refreshedPayment.petDraft?.name) {
-      const Membership = require('../models/Membership');
       const membershipDoc = membershipId ? await Membership.findById(membershipId) : null;
       if (!membershipDoc) return { ok: false, reason: 'missing_membership' };
 
