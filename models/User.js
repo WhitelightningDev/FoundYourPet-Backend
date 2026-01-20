@@ -24,6 +24,12 @@ const userSchema = new Schema({
   membershipActive: { type: Boolean, default: false },
   membershipStartDate: { type: Date, default: null },
 
+  // EMAIL VERIFICATION
+  emailVerified: { type: Boolean, default: false },
+  emailVerificationTokenHash: { type: String, default: null },
+  emailVerificationExpires: { type: Date, default: null },
+  verificationEmailSentAt: { type: Date, default: null },
+
   resetPasswordToken: { type: String },
   resetPasswordExpires: { type: Date },
 });
