@@ -26,6 +26,7 @@ const paymentSchema = new mongoose.Schema({
   status: { type: String, enum: ['pending', 'successful', 'failed'], default: 'pending' },
   yocoChargeId: { type: String },
   yocoCheckoutId: { type: String, default: null },
+  processedAt: { type: Date, default: null },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });

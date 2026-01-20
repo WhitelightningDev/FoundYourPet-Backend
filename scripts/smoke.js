@@ -15,6 +15,8 @@ try {
   require('../controllers/addOnController');
   require('../controllers/packageController');
   require('../controllers/membershipController');
+  require('../services/paymentFinalizer');
+  require('../services/yoco');
   console.log('smoke ok');
   process.exit(0);
 } catch (err) {
