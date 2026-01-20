@@ -19,9 +19,15 @@ const getFrontendUrl = (req) => {
   }
 
   const fallback = 'http://localhost:3000';
-  const normalized = (candidate || fallback).toString().trim().replace(/\/+$/, '');
-  if (!/^https?:\/\//i.test(normalized)) return fallback;
-  return normalized;
+  const trimmed = (candidate || '').toString().trim().replace(/\/+$/, '');
+  if (!trimmed) return fallback;
+
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    return new URL(withScheme).origin;
+  } catch {
+    return fallback;
+  }
 };
 
 const normalizeBool = (value) => {
@@ -49,18 +55,50 @@ const getTagTypeFromPackageType = (packageType) => {
 };
 
 const createCheckoutSession = async (req, res) => {
+  const requestId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const userId = req.userId;
   const { petIds, amountInCents, packageType, billingDetails } = req.body;
   const membership = normalizeBool(req.body.membership);
   const petDraft = req.body.petDraft || null;
 
   if (!userId || !petIds || !amountInCents || !packageType || !billingDetails) {
-    return res.status(400).json({ success: false, message: "Missing required fields" });
+    return res.status(400).json({ success: false, message: "Missing required fields", requestId });
   }
 
   const frontendUrl = getFrontendUrl(req);
+  const yocoSecretKey = process.env.YOCO_SECRET_KEY;
+  if (!yocoSecretKey) {
+    return res.status(500).json({
+      success: false,
+      message: "Server misconfiguration: YOCO_SECRET_KEY is not set",
+      requestId,
+    });
+  }
+  if (String(yocoSecretKey).trim().startsWith('pk_')) {
+    return res.status(500).json({
+      success: false,
+      message: "Server misconfiguration: YOCO_SECRET_KEY is set to a public key (pk_...). Use your secret key (sk_...) on the backend.",
+      requestId,
+    });
+  }
+  if (!String(yocoSecretKey).trim().startsWith('sk_')) {
+    return res.status(500).json({
+      success: false,
+      message: "Server misconfiguration: YOCO_SECRET_KEY must be a secret key (sk_...).",
+      requestId,
+    });
+  }
 
   try {
+    console.log(`[createCheckoutSession:${requestId}] start`, {
+      userId,
+      membership,
+      petIdsCount: Array.isArray(petIds) ? petIds.length : null,
+      hasPetDraft: !!petDraft,
+      frontendUrl,
+      packageType,
+    });
+
     const normalizedPetIds = Array.isArray(petIds) ? petIds : [];
     const isNewPetSubscription = membership && normalizedPetIds.length === 0 && !!petDraft;
 
@@ -184,7 +222,7 @@ const createCheckoutSession = async (req, res) => {
       }
     }
 
-    const payment = await Payment.create({
+    let payment = await Payment.create({
       userId,
       petIds: normalizedPetIds,
       kind: paymentKind,
@@ -195,32 +233,58 @@ const createCheckoutSession = async (req, res) => {
     });
 
     // 3. Create the Yoco Checkout session
-    const response = await axios.post('https://payments.yoco.com/api/checkouts', {
-      amount: finalAmountInCents,
-      currency: 'ZAR',
-      description: membership
-        ? `Subscription: ${membershipDoc?.name || packageType} + Payment ID: ${payment._id}`
-        : `Order: ${packageType} + Payment ID: ${payment._id}`,
-      successUrl: `${frontendUrl}/payment-success?paymentId=${payment._id}`,
-      cancelUrl: `${frontendUrl}/payment-cancel`,
-      failureUrl: `${frontendUrl}/payment-failure`,
-      metadata: {
-        userId,
-        kind: paymentKind,
-        packageType,
-        membershipId: membershipDoc?._id || null,
-        paymentId: payment._id,
-        pets: normalizedPetIds,
-        tagType: membership ? null : getTagTypeFromPackageType(packageType),
-      },
-      billingDetails,
-    }, {
-      headers: {
-        'Authorization': `Bearer ${process.env.YOCO_SECRET_KEY}`,
-        'Content-Type': 'application/json',
-        'Idempotency-Key': `${userId}-${Date.now()}`,
-      }
-    });
+    let response;
+    try {
+      response = await axios.post('https://payments.yoco.com/api/checkouts', {
+        amount: finalAmountInCents,
+        currency: 'ZAR',
+        description: membership
+          ? `Subscription: ${membershipDoc?.name || packageType} + Payment ID: ${payment._id}`
+          : `Order: ${packageType} + Payment ID: ${payment._id}`,
+        successUrl: `${frontendUrl}/payment-success?paymentId=${payment._id}`,
+        cancelUrl: `${frontendUrl}/payment-cancel`,
+        failureUrl: `${frontendUrl}/payment-failure`,
+        metadata: {
+          userId,
+          kind: paymentKind,
+          packageType,
+          membershipId: membershipDoc?._id || null,
+          paymentId: payment._id,
+          pets: normalizedPetIds,
+          tagType: membership ? null : getTagTypeFromPackageType(packageType),
+        },
+        billingDetails,
+      }, {
+        headers: {
+          'Authorization': `Bearer ${yocoSecretKey}`,
+          'Content-Type': 'application/json',
+          'Idempotency-Key': `${userId}-${Date.now()}`,
+        }
+      });
+    } catch (yocoErr) {
+      await Payment.findByIdAndUpdate(payment._id, { status: 'failed', updatedAt: new Date() });
+      const status = yocoErr?.response?.status;
+      const providerMessage = yocoErr?.response?.data || yocoErr?.message;
+      return res.status(502).json({
+        success: false,
+        message: "Checkout creation failed",
+        provider: "yoco",
+        status,
+        details: providerMessage,
+        requestId,
+      });
+    }
+
+    if (!response?.data?.redirectUrl) {
+      await Payment.findByIdAndUpdate(payment._id, { status: 'failed', updatedAt: new Date() });
+      return res.status(502).json({
+        success: false,
+        message: "Checkout creation failed",
+        provider: "yoco",
+        details: "Missing redirectUrl in Yoco response",
+        requestId,
+      });
+    }
 
     const checkoutId =
       response?.data?.id || response?.data?.checkoutId || response?.data?.checkout_id || null;
@@ -231,8 +295,14 @@ const createCheckoutSession = async (req, res) => {
     // Return the checkout URL to redirect the user
     res.status(200).json({ checkout_url: response.data.redirectUrl, paymentId: payment._id });
   } catch (error) {
-    console.error('Checkout creation error:', error?.response?.data || error.message);
-    res.status(500).json({ success: false, message: 'Checkout creation failed' });
+    console.error(`[createCheckoutSession:${requestId}] error`, error?.response?.data || error);
+    res.status(500).json({
+      success: false,
+      message: 'Checkout creation failed',
+      requestId,
+      errorName: error?.name || 'Error',
+      details: error?.response?.data || error?.message,
+    });
   }
 };
 
