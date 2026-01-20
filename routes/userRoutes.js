@@ -56,6 +56,8 @@ router.get('/me', auth, userController.getCurrentUser);
 
 // ✅ Admin-only route to get a user with their pets
 router.get('/:id/with-pets', auth, admin, userController.getUserWithPets);
+// Backwards-compatible alias (some clients accidentally call /api/users/users/:id/with-pets)
+router.get('/users/:id/with-pets', auth, admin, userController.getUserWithPets);
 
 /**
  * @route   GET /api/users/:id

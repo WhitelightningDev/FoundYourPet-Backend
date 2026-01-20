@@ -224,6 +224,27 @@ const createCheckoutSession = async (req, res) => {
       }
     }
 
+    const user = await User.findById(userId).select('name surname email contact address');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found', requestId });
+    }
+
+    const shippingSnapshot = {
+      name: user.name || null,
+      surname: user.surname || null,
+      email: user.email || null,
+      contact: user.contact || null,
+      address: user.address
+        ? {
+            street: user.address.street || null,
+            city: user.address.city || null,
+            province: user.address.province || null,
+            postalCode: user.address.postalCode || null,
+            country: user.address.country || null,
+          }
+        : null,
+    };
+
     let payment = await Payment.create({
       userId,
       petIds: normalizedPetIds,
@@ -232,6 +253,8 @@ const createCheckoutSession = async (req, res) => {
       membership: membershipDoc?._id || null,
       petDraft: sanitizedPetDraft,
       packageType,
+      tagType: paymentKind === 'tag' ? getTagTypeFromPackageType(packageType) : null,
+      shipping: shippingSnapshot,
     });
 
     // 3. Create the Yoco Checkout session
@@ -456,9 +479,216 @@ const getPaymentDetails = async (req, res) => {
   }
 };
 
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const parseClampedInt = (raw, { min, max, fallback }) => {
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(Math.max(n, min), max);
+};
+
+// Admin: list successful tag purchases for fulfillment
+const getAdminTagOrders = async (req, res) => {
+  try {
+    const limit = parseClampedInt(req.query.limit, { min: 1, max: 100, fallback: 50 });
+    const skip = parseClampedInt(req.query.skip, { min: 0, max: 1_000_000, fallback: 0 });
+    const q = (req.query.q || '').toString().trim();
+    const fulfillmentStatus = (req.query.fulfillmentStatus || req.query.fulfillment || '').toString().trim().toLowerCase();
+
+    const allowedFulfillmentStatuses = new Set([
+      'unfulfilled',
+      'processing',
+      'submitted',
+      'shipped',
+      'delivered',
+      'cancelled',
+    ]);
+
+    if (fulfillmentStatus && !allowedFulfillmentStatuses.has(fulfillmentStatus)) {
+      return res.status(400).json({ success: false, message: 'Invalid fulfillmentStatus' });
+    }
+
+    const and = [{ kind: 'tag', status: 'successful' }];
+
+    if (q) {
+      const safe = escapeRegex(q);
+      const regex = new RegExp(safe, 'i');
+      and.push({
+        $or: [
+          { packageType: regex },
+          { tagType: regex },
+          { 'shipping.email': regex },
+          { 'shipping.name': regex },
+          { 'shipping.surname': regex },
+          { 'shipping.contact': regex },
+          { 'shipping.address.city': regex },
+          { 'shipping.address.province': regex },
+          { 'shipping.address.postalCode': regex },
+        ],
+      });
+    }
+
+    if (fulfillmentStatus) {
+      if (fulfillmentStatus === 'unfulfilled') {
+        and.push({
+          $or: [
+            { 'fulfillment.status': { $exists: false } },
+            { 'fulfillment.status': null },
+            { 'fulfillment.status': 'unfulfilled' },
+          ],
+        });
+      } else {
+        and.push({ 'fulfillment.status': fulfillmentStatus });
+      }
+    } else {
+      and.push({
+        $or: [
+          { 'fulfillment.status': { $exists: false } },
+          { 'fulfillment.status': null },
+          { 'fulfillment.status': { $in: ['unfulfilled', 'processing', 'submitted'] } },
+        ],
+      });
+    }
+
+    const query = and.length === 1 ? and[0] : { $and: and };
+
+    const [total, payments] = await Promise.all([
+      Payment.countDocuments(query),
+      Payment.find(query)
+        .sort({ processedAt: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('userId', 'name surname email contact address')
+        .populate('petIds', 'name species breed')
+        .lean(),
+    ]);
+
+    const orders = payments.map((payment) => {
+      const pets = Array.isArray(payment.petIds)
+        ? payment.petIds.map((pet) => ({
+            _id: pet._id,
+            name: pet.name || null,
+            species: pet.species || null,
+            breed: pet.breed || null,
+          }))
+        : [];
+
+      const user = payment.userId
+        ? {
+            _id: payment.userId._id,
+            name: payment.userId.name || null,
+            surname: payment.userId.surname || null,
+            email: payment.userId.email || null,
+            contact: payment.userId.contact || null,
+            address: payment.userId.address || null,
+          }
+        : null;
+
+      const shipping = payment.shipping || (user ? { ...user, address: user.address } : null);
+
+      return {
+        paymentId: payment._id,
+        purchasedAt: payment.processedAt || null,
+        amountInCents: payment.amountInCents,
+        currency: payment.currency || 'ZAR',
+        amountPaid: (payment.amountInCents / 100).toFixed(2),
+        packageType: payment.packageType || null,
+        tagType: payment.tagType || getTagTypeFromPackageType(payment.packageType) || null,
+        quantity: pets.length,
+        pets,
+        user,
+        shipping,
+        fulfillment: payment.fulfillment || null,
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        orders,
+        page: { total, skip, limit, returned: orders.length },
+      },
+    });
+  } catch (err) {
+    console.error('Failed to list tag orders:', err.message);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// Admin: update fulfillment/tracking details for a tag order
+const updateTagOrderFulfillment = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+
+    const requestedStatus = req.body?.status ? String(req.body.status).trim().toLowerCase() : null;
+    const notes = req.body?.notes !== undefined ? String(req.body.notes || '').trim() : undefined;
+    const pudoShipmentId = req.body?.pudoShipmentId !== undefined ? String(req.body.pudoShipmentId || '').trim() : undefined;
+    const pudoTrackingNumber =
+      req.body?.pudoTrackingNumber !== undefined ? String(req.body.pudoTrackingNumber || '').trim() : undefined;
+    const pudoStatus = req.body?.pudoStatus !== undefined ? String(req.body.pudoStatus || '').trim() : undefined;
+    const pudoLabelUrl = req.body?.pudoLabelUrl !== undefined ? String(req.body.pudoLabelUrl || '').trim() : undefined;
+
+    const allowedFulfillmentStatuses = new Set([
+      'unfulfilled',
+      'processing',
+      'submitted',
+      'shipped',
+      'delivered',
+      'cancelled',
+    ]);
+
+    if (requestedStatus && !allowedFulfillmentStatuses.has(requestedStatus)) {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+
+    const payment = await Payment.findById(paymentId);
+    if (!payment) return res.status(404).json({ success: false, message: 'Order not found' });
+    if (payment.kind !== 'tag') return res.status(400).json({ success: false, message: 'Not a tag order' });
+    if (payment.status !== 'successful') {
+      return res.status(409).json({ success: false, message: 'Order is not a successful payment' });
+    }
+
+    const now = new Date();
+    const set = {
+      updatedAt: now,
+      'fulfillment.updatedAt': now,
+      'fulfillment.provider': 'pudo',
+    };
+
+    if (!payment.fulfillment?.createdAt) set['fulfillment.createdAt'] = now;
+
+    if (requestedStatus) {
+      set['fulfillment.status'] = requestedStatus;
+      if (requestedStatus === 'submitted' && !payment.fulfillment?.submittedAt) set['fulfillment.submittedAt'] = now;
+      if (requestedStatus === 'shipped' && !payment.fulfillment?.shippedAt) set['fulfillment.shippedAt'] = now;
+      if (requestedStatus === 'delivered' && !payment.fulfillment?.deliveredAt) set['fulfillment.deliveredAt'] = now;
+    }
+
+    if (notes !== undefined) set['fulfillment.notes'] = notes || null;
+    if (pudoShipmentId !== undefined) set['fulfillment.pudo.shipmentId'] = pudoShipmentId || null;
+    if (pudoTrackingNumber !== undefined) set['fulfillment.pudo.trackingNumber'] = pudoTrackingNumber || null;
+    if (pudoStatus !== undefined) set['fulfillment.pudo.status'] = pudoStatus || null;
+    if (pudoLabelUrl !== undefined) set['fulfillment.pudo.labelUrl'] = pudoLabelUrl || null;
+
+    await Payment.updateOne({ _id: paymentId }, { $set: set });
+
+    const updated = await Payment.findById(paymentId)
+      .populate('userId', 'name surname email contact address')
+      .populate('petIds', 'name species breed')
+      .lean();
+
+    return res.status(200).json({ success: true, data: updated });
+  } catch (err) {
+    console.error('Failed to update fulfillment:', err.message);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 module.exports = {
   getPaymentDetails,
   createCheckoutSession,
   confirmPayment,
+  getAdminTagOrders,
+  updateTagOrderFulfillment,
 
 };
