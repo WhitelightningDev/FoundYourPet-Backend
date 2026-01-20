@@ -26,6 +26,12 @@ const uploadImageToCloudinary = (fileBuffer) => {
 
 // CREATE Pet
 exports.createPet = async (req, res) => {
+  if (!req.user?.isAdmin) {
+    return res.status(403).json({
+      msg: "Pets are created after a successful subscription payment. Please start checkout to add a pet.",
+    });
+  }
+
   const {
     name,
     species,
@@ -105,6 +111,18 @@ exports.createPet = async (req, res) => {
       await createPetInDB();
     }
 
+  } catch (err) {
+    return errorHandler(res, err);
+  }
+};
+
+exports.uploadPetPhoto = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ msg: "Photo file is required" });
+    }
+    const photoUrl = await uploadImageToCloudinary(req.file.buffer);
+    return res.status(200).json({ photoUrl });
   } catch (err) {
     return errorHandler(res, err);
   }

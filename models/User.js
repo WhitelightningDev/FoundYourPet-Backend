@@ -28,6 +28,15 @@ const userSchema = new Schema({
   resetPasswordExpires: { type: Date },
 });
 
+userSchema.virtual('pets', {
+  ref: 'Pet',
+  localField: '_id',
+  foreignField: 'userId',
+  justOne: false,
+});
+
+userSchema.set('toObject', { virtuals: true });
+userSchema.set('toJSON', { virtuals: true });
+
 // Prevent OverwriteModelError by checking if model exists
 module.exports = mongoose.models.User || mongoose.model('User', userSchema);
-
