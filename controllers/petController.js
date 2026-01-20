@@ -331,7 +331,7 @@ exports.getPublicPetProfile = async (req, res) => {
   try {
     const pet = await Pet.findById(req.params.petId)
       .populate('userId', 'name surname email contact')
-      .select('name species breed age gender color photoUrl tagType');
+      .select('name species breed age gender color photoUrl tagType microchipNumber size');
 
     if (!pet) return res.status(404).json({ msg: 'Pet not found' });
 
