@@ -1,4 +1,5 @@
 const Pet = require('../models/Pet');
+const Payment = require('../models/Payment');
 const { validationResult } = require('express-validator');
 const streamifier = require('streamifier');
 const cloudinary = require('cloudinary').v2;
@@ -22,6 +23,69 @@ const uploadImageToCloudinary = (fileBuffer) => {
     );
     stream.pipe(uploadStream);
   });
+};
+
+const normalizeFulfillmentForResponse = (payment) => {
+  const fulfillment = payment?.fulfillment || null;
+  const status = (fulfillment?.status || 'unfulfilled').toString();
+  return {
+    provider: fulfillment?.provider || 'pudo',
+    status,
+    notes: fulfillment?.notes || null,
+    pudo: {
+      shipmentId: fulfillment?.pudo?.shipmentId || null,
+      trackingNumber: fulfillment?.pudo?.trackingNumber || null,
+      status: fulfillment?.pudo?.status || null,
+      labelUrl: fulfillment?.pudo?.labelUrl || null,
+      lastSyncedAt: fulfillment?.pudo?.lastSyncedAt || null,
+    },
+    createdAt: fulfillment?.createdAt || null,
+    updatedAt: fulfillment?.updatedAt || null,
+    submittedAt: fulfillment?.submittedAt || null,
+    shippedAt: fulfillment?.shippedAt || null,
+    deliveredAt: fulfillment?.deliveredAt || null,
+  };
+};
+
+const getLatestTagOrderByPetId = async ({ userId, petIds }) => {
+  const ids = Array.isArray(petIds) ? petIds.filter(Boolean) : [];
+  if (!ids.length) return new Map();
+
+  const payments = await Payment.find({
+    userId,
+    kind: 'tag',
+    status: 'successful',
+    petIds: { $in: ids },
+  })
+    .sort({ processedAt: -1, createdAt: -1 })
+    .select('_id petIds processedAt createdAt fulfillment tagType packageType amountInCents currency')
+    .lean();
+
+  const map = new Map();
+
+  for (const payment of payments) {
+    const purchasedAt = payment.processedAt || payment.createdAt || null;
+    const fulfillment = normalizeFulfillmentForResponse(payment);
+    const petIdList = Array.isArray(payment.petIds) ? payment.petIds : [];
+
+    for (const petId of petIdList) {
+      const key = petId?.toString?.() || String(petId);
+      if (!key) continue;
+      if (map.has(key)) continue; // payments already sorted newest-first
+
+      map.set(key, {
+        paymentId: payment._id,
+        purchasedAt,
+        amountInCents: payment.amountInCents,
+        currency: payment.currency || 'ZAR',
+        tagType: payment.tagType || null,
+        packageType: payment.packageType || null,
+        fulfillment,
+      });
+    }
+  }
+
+  return map;
 };
 
 // CREATE Pet
@@ -225,8 +289,19 @@ exports.deletePet = async (req, res) => {
 exports.getUserPets = async (req, res) => {
   const userId = req.userId;
   try {
-    const pets = await Pet.find({ userId });
-    return res.status(200).json(pets);
+    const pets = await Pet.find({ userId }).lean();
+    const petIds = pets.map((pet) => pet._id);
+    const latestTagOrderByPetId = await getLatestTagOrderByPetId({ userId, petIds });
+
+    const enriched = pets.map((pet) => {
+      const key = pet?._id?.toString?.() || String(pet?._id);
+      return {
+        ...pet,
+        tagOrder: latestTagOrderByPetId.get(key) || null,
+      };
+    });
+
+    return res.status(200).json(enriched);
   } catch (err) {
     return errorHandler(res, err);
   }
@@ -237,9 +312,15 @@ exports.getPetById = async (req, res) => {
   const { id } = req.params;
   const userId = req.userId;
   try {
-    const pet = await Pet.findOne({ _id: id, userId });
+    const pet = await Pet.findOne({ _id: id, userId }).lean();
     if (!pet) return res.status(404).json({ msg: 'Pet not found or not authorized to access this pet' });
-    return res.status(200).json(pet);
+
+    const latestTagOrderByPetId = await getLatestTagOrderByPetId({ userId, petIds: [pet._id] });
+    const key = pet?._id?.toString?.() || String(pet?._id);
+    return res.status(200).json({
+      ...pet,
+      tagOrder: latestTagOrderByPetId.get(key) || null,
+    });
   } catch (err) {
     return errorHandler(res, err);
   }
