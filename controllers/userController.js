@@ -117,7 +117,15 @@ exports.resendVerification = async (req, res) => {
     const lastSentAt = user.verificationEmailSentAt ? new Date(user.verificationEmailSentAt).getTime() : 0;
     const nowMs = Date.now();
     if (lastSentAt && nowMs - lastSentAt < 60_000) {
-      return res.status(429).json({ success: false, message: 'Please wait a minute before resending.' });
+      const retryAfterSeconds = Math.max(1, Math.ceil((60_000 - (nowMs - lastSentAt)) / 1000));
+      res.set('Retry-After', String(retryAfterSeconds));
+      // Return 200 here so clients don't spam fallback endpoints on a cooldown window.
+      return res.status(200).json({
+        success: true,
+        cooldown: true,
+        retryAfterSeconds,
+        message: 'Verification email was sent recently. Please check your inbox and try again shortly.',
+      });
     }
 
     const backendUrl = (process.env.BACKEND_URL || 'https://foundyourpet-backend.onrender.com').toString().replace(/\/+$/, '');
