@@ -12,6 +12,8 @@ const upload = multer();
 // ----------------------------
 
 // CREATE - Add a new pet
+router.post('/upload-photo', upload.single('photo'), petController.uploadPetPhoto);
+
 router.post(
   '/create',
   upload.single('photo'),
