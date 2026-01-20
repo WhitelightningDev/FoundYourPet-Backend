@@ -684,11 +684,74 @@ const updateTagOrderFulfillment = async (req, res) => {
   }
 };
 
+// User: fetch a single tag order (for tracking page)
+const getUserTagOrder = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const requesterUserId = req.userId;
+
+    const payment = await Payment.findById(paymentId)
+      .populate('petIds', 'name species breed')
+      .populate('userId', 'name surname email contact address')
+      .lean();
+
+    if (!payment) return res.status(404).json({ success: false, message: 'Order not found' });
+    if (payment.kind !== 'tag') return res.status(400).json({ success: false, message: 'Not a tag order' });
+    if (!req.user?.isAdmin && payment.userId?._id?.toString() !== requesterUserId) {
+      return res.status(403).json({ success: false, message: 'Not authorized to view this order' });
+    }
+    if (payment.status !== 'successful') {
+      return res.status(409).json({ success: false, message: 'Order is not a successful payment' });
+    }
+
+    const user = payment.userId
+      ? {
+          _id: payment.userId._id,
+          name: payment.userId.name || null,
+          surname: payment.userId.surname || null,
+          email: payment.userId.email || null,
+          contact: payment.userId.contact || null,
+          address: payment.userId.address || null,
+        }
+      : null;
+
+    const shipping = payment.shipping || (user ? { ...user, address: user.address } : null);
+    const fulfillment = payment.fulfillment || { provider: 'pudo', status: 'unfulfilled' };
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        paymentId: payment._id,
+        purchasedAt: payment.processedAt || payment.createdAt || null,
+        amountInCents: payment.amountInCents,
+        currency: payment.currency || 'ZAR',
+        amountPaid: (payment.amountInCents / 100).toFixed(2),
+        packageType: payment.packageType || null,
+        tagType: payment.tagType || getTagTypeFromPackageType(payment.packageType) || null,
+        pets: Array.isArray(payment.petIds)
+          ? payment.petIds.map((pet) => ({
+              _id: pet._id,
+              name: pet.name || null,
+              species: pet.species || null,
+              breed: pet.breed || null,
+            }))
+          : [],
+        shipping,
+        fulfillment,
+      },
+    });
+  } catch (err) {
+    console.error('Failed to retrieve tag order:', err.message);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 module.exports = {
   getPaymentDetails,
   createCheckoutSession,
   confirmPayment,
   getAdminTagOrders,
   updateTagOrderFulfillment,
+  getUserTagOrder,
 
 };
