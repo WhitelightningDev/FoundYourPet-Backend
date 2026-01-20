@@ -1,5 +1,6 @@
 // testEmail.js
-require('dotenv').config(); // if you're using environment variables
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '.env') }); // load regardless of CWD
 const sendEmail = require('./services/mailService'); // adjust this path
 
 const runTest = async () => {

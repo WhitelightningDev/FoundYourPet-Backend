@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
+const path = require('path');
 const bcrypt = require('bcryptjs');
 
 const AddOn = require('./models/AddOn');
@@ -8,7 +9,7 @@ const Membership = require('./models/Membership'); // Make sure this exists
 const User = require('./models/User');
 const Pet = require('./models/Pet'); // Import your Pet model
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 const seedAddOns = [
   { name: "Heart-Shaped Tag", price: 30, applicableTo: ["standard"] },
@@ -86,7 +87,10 @@ const seedPetsTemplate = [
 
 async function seedDatabase() {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
+    const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI || process.env.DATABASE_URL;
+    if (!mongoUri) throw new Error('Missing MongoDB connection string (set MONGO_URI, MONGODB_URI, or DATABASE_URL)');
+
+    await mongoose.connect(mongoUri);
     console.log('🔗 Connected to MongoDB');
 
     // Clear collections
