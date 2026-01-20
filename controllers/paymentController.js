@@ -12,8 +12,8 @@ const normalizeBool = (value) => {
   return false;
 };
 
-const getSubscriptionPriceForPet = (pet) => {
-  const size = (pet?.size || '').toString().trim().toLowerCase();
+const getSubscriptionPriceForSize = (sizeInput) => {
+  const size = (sizeInput || '').toString().trim().toLowerCase();
   if (size === 'small') return 50;
   if (size === 'medium') return 70;
   if (size === 'large') return 100;
@@ -32,6 +32,7 @@ const createCheckoutSession = async (req, res) => {
   const userId = req.userId;
   const { petIds, amountInCents, packageType, billingDetails } = req.body;
   const membership = normalizeBool(req.body.membership);
+  const petDraft = req.body.petDraft || null;
 
   if (!userId || !petIds || !amountInCents || !packageType || !billingDetails) {
     return res.status(400).json({ success: false, message: "Missing required fields" });
@@ -44,12 +45,29 @@ const createCheckoutSession = async (req, res) => {
   }
 
   try {
-    if (!Array.isArray(petIds) || petIds.length === 0) {
+    const normalizedPetIds = Array.isArray(petIds) ? petIds : [];
+    const isNewPetSubscription = membership && normalizedPetIds.length === 0 && !!petDraft;
+
+    const parseFiniteNumberOrNull = (value) => {
+      if (value === null || value === undefined || value === '') return null;
+      const n = Number(value);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const parseDateOrNull = (value) => {
+      if (!value) return null;
+      const d = new Date(value);
+      return Number.isNaN(d.getTime()) ? null : d;
+    };
+
+    if (!isNewPetSubscription && normalizedPetIds.length === 0) {
       return res.status(400).json({ success: false, message: "petIds must be a non-empty array" });
     }
 
-    const pets = await Pet.find({ _id: { $in: petIds }, userId });
-    if (pets.length !== petIds.length) {
+    const pets = normalizedPetIds.length
+      ? await Pet.find({ _id: { $in: normalizedPetIds }, userId })
+      : [];
+    if (normalizedPetIds.length && pets.length !== normalizedPetIds.length) {
       return res.status(400).json({ success: false, message: "One or more pets were not found for this user" });
     }
 
@@ -58,16 +76,12 @@ const createCheckoutSession = async (req, res) => {
     let membershipDoc = null;
 
     if (membership) {
-      if (petIds.length !== 1) {
+      if (!isNewPetSubscription && normalizedPetIds.length !== 1) {
         return res.status(400).json({ success: false, message: "Membership checkout supports exactly one pet" });
       }
 
-      const pet = pets[0];
-      if (pet.hasMembership) {
-        return res.status(409).json({ success: false, message: "This pet already has an active subscription" });
-      }
-
-      const monthlyPrice = getSubscriptionPriceForPet(pet);
+      const sizeSource = isNewPetSubscription ? petDraft?.size : pets[0]?.size;
+      const monthlyPrice = getSubscriptionPriceForSize(sizeSource);
       if (!monthlyPrice) {
         return res.status(400).json({
           success: false,
@@ -75,7 +89,14 @@ const createCheckoutSession = async (req, res) => {
         });
       }
 
-      const normalizedSize = pet.size.toLowerCase();
+      if (!isNewPetSubscription) {
+        const pet = pets[0];
+        if (pet.hasMembership) {
+          return res.status(409).json({ success: false, message: "This pet already has an active subscription" });
+        }
+      }
+
+      const normalizedSize = (sizeSource || '').toString().toLowerCase();
       const planName =
         normalizedSize === 'small'
           ? 'Small Pet Subscription'
@@ -112,12 +133,48 @@ const createCheckoutSession = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid amountInCents" });
     }
 
+    const sanitizedPetDraft = isNewPetSubscription
+      ? {
+          name: petDraft?.name ? String(petDraft.name).trim() : null,
+          species: petDraft?.species ? String(petDraft.species).trim() : null,
+          breed: petDraft?.breed ? String(petDraft.breed).trim() : null,
+          age: parseFiniteNumberOrNull(petDraft?.age),
+          gender: petDraft?.gender ? String(petDraft.gender).trim() : null,
+          color: petDraft?.color ? String(petDraft.color).trim() : null,
+          size: petDraft?.size ? String(petDraft.size).trim().toLowerCase() : null,
+          dateOfBirth: parseDateOrNull(petDraft?.dateOfBirth),
+          spayedNeutered: normalizeBool(petDraft?.spayedNeutered),
+          trainingLevel: petDraft?.trainingLevel ? String(petDraft.trainingLevel).trim() : null,
+          weight: parseFiniteNumberOrNull(petDraft?.weight),
+          microchipNumber: petDraft?.microchipNumber ? String(petDraft.microchipNumber).trim() : null,
+          photoUrl: petDraft?.photoUrl ? String(petDraft.photoUrl).trim() : null,
+        }
+      : null;
+
+    if (isNewPetSubscription) {
+      const missingDraftFields = [];
+      if (!sanitizedPetDraft?.name) missingDraftFields.push('name');
+      if (!sanitizedPetDraft?.species) missingDraftFields.push('species');
+      if (!sanitizedPetDraft?.breed) missingDraftFields.push('breed');
+      if (!Number.isFinite(sanitizedPetDraft?.age)) missingDraftFields.push('age');
+      if (!sanitizedPetDraft?.gender) missingDraftFields.push('gender');
+      if (!sanitizedPetDraft?.size) missingDraftFields.push('size');
+
+      if (missingDraftFields.length) {
+        return res.status(400).json({
+          success: false,
+          message: `Missing/invalid petDraft fields: ${missingDraftFields.join(', ')}`,
+        });
+      }
+    }
+
     const payment = await Payment.create({
       userId,
-      petIds,
+      petIds: normalizedPetIds,
       kind: paymentKind,
       amountInCents: finalAmountInCents,
       membership: membershipDoc?._id || null,
+      petDraft: sanitizedPetDraft,
       packageType,
     });
 
@@ -137,7 +194,7 @@ const createCheckoutSession = async (req, res) => {
         packageType,
         membershipId: membershipDoc?._id || null,
         paymentId: payment._id,
-        pets: petIds,
+        pets: normalizedPetIds,
         tagType: membership ? null : getTagTypeFromPackageType(packageType),
       },
       billingDetails,
@@ -265,7 +322,8 @@ const getPaymentDetails = async (req, res) => {
     const pets = await Pet.find({ _id: { $in: payment.petIds } }).select("name breed species hasMembership");
     const membershipDoc = payment.membership ? await Membership.findById(payment.membership) : null;
 
-    const isMembershipPayment = payment.kind === 'membership';
+    const paymentKind = payment.kind || (payment.membership ? 'membership' : 'tag');
+    const isMembershipPayment = paymentKind === 'membership';
     const isActiveForPets = isMembershipPayment
       ? pets.length > 0 && pets.every((p) => p.hasMembership)
       : false;
@@ -275,7 +333,7 @@ const getPaymentDetails = async (req, res) => {
       data: {
         user,
         pets,
-        kind: payment.kind,
+        kind: paymentKind,
         membership: isMembershipPayment
           ? { name: membershipDoc?.name || "Subscription", active: isActiveForPets }
           : { name: "No subscription", active: false },

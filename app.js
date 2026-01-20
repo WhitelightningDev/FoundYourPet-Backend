@@ -95,16 +95,45 @@ app.post("/api/payment/webhook", async (req, res) => {
           await Payment.findByIdAndUpdate(paymentId, { membership: membershipId, updatedAt: new Date() });
         }
 
-        await Pet.updateMany(
-          { _id: { $in: petIds }, userId: payment.userId },
-          {
-            $set: {
-              hasMembership: true,
-              membership: membershipId,
-              membershipStartDate: new Date(),
+        let effectivePetIds = petIds;
+        if ((!effectivePetIds || effectivePetIds.length === 0) && payment.petDraft?.name) {
+          const draft = payment.petDraft;
+          const createdPet = await Pet.create({
+            name: draft.name,
+            species: draft.species,
+            breed: draft.breed,
+            age: draft.age,
+            gender: draft.gender,
+            color: draft.color || null,
+            size: draft.size || null,
+            dateOfBirth: draft.dateOfBirth || null,
+            spayedNeutered: !!draft.spayedNeutered,
+            trainingLevel: draft.trainingLevel || null,
+            weight: draft.weight || null,
+            microchipNumber: draft.microchipNumber || null,
+            photoUrl: draft.photoUrl || null,
+            userId: payment.userId,
+            hasMembership: true,
+            membership: membershipId,
+            membershipStartDate: new Date(),
+          });
+
+          effectivePetIds = [createdPet._id];
+          await Payment.findByIdAndUpdate(paymentId, { petIds: effectivePetIds, updatedAt: new Date() });
+        }
+
+        if (Array.isArray(effectivePetIds) && effectivePetIds.length) {
+          await Pet.updateMany(
+            { _id: { $in: effectivePetIds }, userId: payment.userId },
+            {
+              $set: {
+                hasMembership: true,
+                membership: membershipId,
+                membershipStartDate: new Date(),
+              }
             }
-          }
-        );
+          );
+        }
 
         const activePet = await Pet.findOne({ userId: payment.userId, hasMembership: true }).select('_id');
         await User.findByIdAndUpdate(payment.userId, {

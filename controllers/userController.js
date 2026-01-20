@@ -249,6 +249,7 @@ exports.deleteUser = async (req, res) => {
       return res.status(404).json({ msg: 'User not found' });
     }
 
+    await Pet.deleteMany({ userId: user._id });
     await user.remove();
     return res.status(200).json({ msg: 'User deleted successfully' });
   } catch (err) {
@@ -265,14 +266,11 @@ exports.getUserWithPets = async (req, res) => {
   try {
     const userId = req.params.id;
 
-    // Fetch the user
-    const user = await User.findById(userId).select('-password');
+    // Fetch the user + pets via virtual populate
+    const user = await User.findById(userId).select('-password').populate('pets');
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    // Fetch pets associated with the user
-    const pets = await Pet.find({ userId: userId });
-
-    res.status(200).json({ user, pets });
+    res.status(200).json({ user, pets: user.pets || [] });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });
