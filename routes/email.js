@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const sendEmail = require("../services/mailService"); // adjust path accordingly
+const { sendEmail } = require("../services/mailService"); // adjust path accordingly
 
 router.post("/send", async (req, res) => {
   const { to, subject, message } = req.body;

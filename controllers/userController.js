@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const Pet = require("../models/Pet");
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const sendEmail = require("../services/mailService");
+const { sendEmail, sendSignupSuccessEmail } = require("../services/mailService");
 
 
 const { validationResult } = require('express-validator');
@@ -49,7 +49,10 @@ exports.signUp = async (req, res) => {
 
     // 🎉 Trigger welcome email after saving user (do not fail signup if email fails)
     try {
-      await sendEmail(user.email);
+      await sendSignupSuccessEmail({
+        to: user.email,
+        name: user.name || 'there',
+      });
     } catch (emailError) {
       console.warn("Welcome email failed:", emailError?.message || emailError);
     }
