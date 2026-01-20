@@ -59,34 +59,83 @@ app.post("/api/payment/webhook", async (req, res) => {
 
     try {
       const {
-        metadata: { userId, pets, membershipId, paymentId },
+        metadata,
         amount,
         id: yocoChargeId
       } = chargeData;
 
-      await Payment.findOneAndUpdate(
-        paymentId ? { _id: paymentId } : { userId, amountInCents: amount },
-        { status: 'successful', yocoChargeId }
-      );
+      const paymentId = metadata?.paymentId;
+      if (!paymentId) {
+        console.warn('[Webhook] Missing paymentId in metadata; skipping DB updates');
+        return res.sendStatus(200);
+      }
 
-      await Pet.updateMany(
-        { _id: { $in: pets } },
-        {
-          $set: {
-            hasMembership: true,
-            membership: membershipId,
-            membershipStartDate: new Date(),
-            tagType: "Standard"
-          }
-        }
-      );
+      const payment = await Payment.findById(paymentId);
+      if (!payment) {
+        console.warn(`[Webhook] Payment not found: ${paymentId}`);
+        return res.sendStatus(200);
+      }
 
-      await User.findByIdAndUpdate(userId, {
-        membershipActive: true,
-        membershipStartDate: new Date(),
+      const paymentKind =
+        payment.kind || (payment.membership || metadata?.membershipId ? 'membership' : 'tag');
+
+      const petIds = Array.isArray(payment.petIds) && payment.petIds.length
+        ? payment.petIds
+        : (Array.isArray(metadata?.pets) ? metadata.pets : []);
+
+      await Payment.findByIdAndUpdate(paymentId, {
+        status: 'successful',
+        yocoChargeId,
+        updatedAt: new Date(),
       });
 
-      console.log(`[Webhook] Processed successfully for user: ${userId}`);
+      if (paymentKind === 'membership') {
+        const membershipId = payment.membership || metadata?.membershipId || null;
+        if (membershipId && !payment.membership) {
+          await Payment.findByIdAndUpdate(paymentId, { membership: membershipId, updatedAt: new Date() });
+        }
+
+        await Pet.updateMany(
+          { _id: { $in: petIds }, userId: payment.userId },
+          {
+            $set: {
+              hasMembership: true,
+              membership: membershipId,
+              membershipStartDate: new Date(),
+            }
+          }
+        );
+
+        const activePet = await Pet.findOne({ userId: payment.userId, hasMembership: true }).select('_id');
+        await User.findByIdAndUpdate(payment.userId, {
+          membershipActive: !!activePet,
+          membershipStartDate: !!activePet ? new Date() : null,
+        });
+      } else if (paymentKind === 'tag') {
+        const normalizedPackageType = (payment.packageType || metadata?.packageType || '').toString().toLowerCase();
+        const tagType =
+          metadata?.tagType ||
+          (normalizedPackageType.includes('airtag') && normalizedPackageType.includes('apple')
+            ? 'Apple AirTag'
+            : normalizedPackageType.includes('smart') && normalizedPackageType.includes('samsung')
+              ? 'Samsung SmartTag'
+              : normalizedPackageType.includes('tag')
+                ? 'Standard'
+                : null);
+
+        await Pet.updateMany(
+          { _id: { $in: petIds }, userId: payment.userId },
+          {
+            $set: {
+              hasTag: true,
+              tagType,
+              tagPurchaseDate: new Date(),
+            }
+          }
+        );
+      }
+
+      console.log(`[Webhook] Processed successfully for payment: ${paymentId}`);
       return res.sendStatus(200);
     } catch (err) {
       console.error("[Webhook] Processing failed:", err.message);
@@ -124,4 +173,3 @@ app.use((err, req, res, next) => {
 });
 
 module.exports = app;
-

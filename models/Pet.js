@@ -7,6 +7,20 @@ const petSchema = new Schema({
   breed: { type: String, required: true },
   age: { type: Number, required: true },
   color: { type: String },
+  size: {
+    type: String,
+    enum: ['small', 'medium', 'large'],
+    default: null,
+  },
+  dateOfBirth: { type: Date, default: null },
+  spayedNeutered: { type: Boolean, default: false },
+  trainingLevel: {
+    type: String,
+    enum: ['Untrained', 'Basic', 'Intermediate', 'Advanced'],
+    default: null,
+  },
+  weight: { type: Number, default: null },
+  microchipNumber: { type: String, default: null },
 
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   gender: { type: String, enum: ['Male', 'Female', 'Other'], default: 'Other' },

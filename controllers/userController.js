@@ -351,22 +351,37 @@ exports.resetPassword = async (req, res) => {
 
 exports.activateMembership = async (req, res) => {
   try {
-    const userId = req.user?.isAdmin && req.body?.userId ? req.body.userId : req.user?.userId;
-    if (!userId) {
-      return res.status(400).json({ msg: "Missing user context" });
+    const paymentId = req.body?.paymentId;
+    if (!paymentId) {
+      return res.status(400).json({ msg: "Missing paymentId" });
     }
 
-    const user = await User.findById(userId);
+    const Payment = require('../models/Payment');
+    const payment = await Payment.findById(paymentId);
+    if (!payment) {
+      return res.status(404).json({ msg: "Payment not found" });
+    }
+
+    const requesterUserId = req.user?.userId;
+    if (!req.user?.isAdmin && payment.userId.toString() !== requesterUserId) {
+      return res.status(403).json({ msg: "Not authorized to activate this payment" });
+    }
+
+    if (payment.kind !== 'membership' || payment.status !== 'successful') {
+      return res.status(400).json({ msg: "Payment is not a successful membership purchase" });
+    }
+
+    const user = await User.findById(payment.userId);
     if (!user) {
       return res.status(404).json({ msg: "User not found" });
     }
 
-    user.membershipActive = true;
-    user.membershipStartDate = new Date();
-
+    const hasActivePetMembership = await Pet.exists({ userId: user._id, hasMembership: true });
+    user.membershipActive = !!hasActivePetMembership;
+    user.membershipStartDate = hasActivePetMembership ? new Date() : null;
     await user.save();
 
-    return res.status(200).json({ msg: "Membership activated", user });
+    return res.status(200).json({ msg: "Membership status synced", user });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ msg: "Server error" });

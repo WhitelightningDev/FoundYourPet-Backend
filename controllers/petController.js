@@ -26,12 +26,52 @@ const uploadImageToCloudinary = (fileBuffer) => {
 
 // CREATE Pet
 exports.createPet = async (req, res) => {
-  const { name, species, breed, age, gender, color, tagType, membershipId } = req.body;
+  const {
+    name,
+    species,
+    breed,
+    age,
+    gender,
+    color,
+    tagType,
+    size,
+    dateOfBirth,
+    spayedNeutered,
+    trainingLevel,
+    weight,
+    microchipNumber,
+  } = req.body;
   const userId = req.userId;
 
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+    const normalizeSize = (value) => {
+      const normalized = (value || '').toString().trim().toLowerCase();
+      if (['small', 'medium', 'large'].includes(normalized)) return normalized;
+      return null;
+    };
+
+    const normalizeBool = (value) => {
+      if (typeof value === 'boolean') return value;
+      const normalized = (value || '').toString().trim().toLowerCase();
+      if (normalized === 'true') return true;
+      if (normalized === 'false') return false;
+      return false;
+    };
+
+    const normalizeDate = (value) => {
+      if (!value) return null;
+      const d = new Date(value);
+      return Number.isNaN(d.getTime()) ? null : d;
+    };
+
+    const normalizeNumber = (value) => {
+      if (value === null || value === undefined || value === '') return null;
+      const n = Number(value);
+      return Number.isFinite(n) ? n : null;
+    };
 
     const createPetInDB = async (photoUrl = null) => {
       const newPet = new Pet({
@@ -41,12 +81,17 @@ exports.createPet = async (req, res) => {
         age,
         gender,
         color: color || null,
+        size: normalizeSize(size),
+        dateOfBirth: normalizeDate(dateOfBirth),
+        spayedNeutered: normalizeBool(spayedNeutered),
+        trainingLevel: ['Untrained', 'Basic', 'Intermediate', 'Advanced'].includes(trainingLevel)
+          ? trainingLevel
+          : null,
+        weight: normalizeNumber(weight),
+        microchipNumber: microchipNumber ? String(microchipNumber).trim() : null,
         tagType: ['Standard', 'Apple AirTag', 'Samsung SmartTag'].includes(tagType) ? tagType : null,
         photoUrl,
         userId,
-        hasMembership: membershipId ? true : false,
-        membership: membershipId || null,
-        membershipStartDate: membershipId ? new Date() : null
       });
 
       await newPet.save();
@@ -82,7 +127,12 @@ exports.updatePet = async (req, res) => {
       gender,
       color,
       tagType,
-      membershipId
+      size,
+      dateOfBirth,
+      spayedNeutered,
+      trainingLevel,
+      weight,
+      microchipNumber,
     } = req.body;
 
     if (name) pet.name = name;
@@ -91,14 +141,38 @@ exports.updatePet = async (req, res) => {
     if (age) pet.age = age;
     if (gender) pet.gender = gender;
     if (color !== undefined) pet.color = color;
+    if (size !== undefined) {
+      const normalizedSize = (size || '').toString().trim().toLowerCase();
+      pet.size = ['small', 'medium', 'large'].includes(normalizedSize) ? normalizedSize : null;
+    }
+    if (dateOfBirth !== undefined) {
+      if (!dateOfBirth) {
+        pet.dateOfBirth = null;
+      } else {
+        const d = new Date(dateOfBirth);
+        pet.dateOfBirth = Number.isNaN(d.getTime()) ? pet.dateOfBirth : d;
+      }
+    }
+    if (spayedNeutered !== undefined) {
+      const normalized = (spayedNeutered || '').toString().trim().toLowerCase();
+      if (normalized === 'true') pet.spayedNeutered = true;
+      else if (normalized === 'false') pet.spayedNeutered = false;
+      else if (typeof spayedNeutered === 'boolean') pet.spayedNeutered = spayedNeutered;
+    }
+    if (trainingLevel !== undefined) {
+      pet.trainingLevel = ['Untrained', 'Basic', 'Intermediate', 'Advanced'].includes(trainingLevel)
+        ? trainingLevel
+        : null;
+    }
+    if (weight !== undefined) {
+      const n = Number(weight);
+      pet.weight = Number.isFinite(n) ? n : null;
+    }
+    if (microchipNumber !== undefined) {
+      pet.microchipNumber = microchipNumber ? String(microchipNumber).trim() : null;
+    }
     if (tagType && ['Standard', 'Apple AirTag', 'Samsung SmartTag'].includes(tagType)) {
       pet.tagType = tagType;
-    }
-
-    if (membershipId) {
-      pet.membership = membershipId;
-      pet.hasMembership = true;
-      pet.membershipStartDate = new Date();
     }
 
     if (req.file) {
@@ -176,6 +250,10 @@ exports.updatePetMembership = async (req, res) => {
   const { petId, membership } = req.body;
 
   try {
+    if (!req.user?.isAdmin) {
+      return res.status(403).json({ success: false, message: 'Admins only' });
+    }
+
     const pet = await Pet.findById(petId);
     if (!pet) return res.status(404).json({ success: false, message: "Pet not found" });
 
