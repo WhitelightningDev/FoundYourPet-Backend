@@ -1,15 +1,15 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const User = require('./models/User');
 
 async function seedUsers() {
-  if (!process.env.MONGO_URI) {
-    throw new Error('MONGO_URI is not set');
-  }
+  const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI || process.env.DATABASE_URL;
+  if (!mongoUri) throw new Error('Missing MongoDB connection string (set MONGO_URI, MONGODB_URI, or DATABASE_URL)');
 
-  await mongoose.connect(process.env.MONGO_URI);
+  await mongoose.connect(mongoUri);
   console.log('Connected to MongoDB');
 
   const users = [

@@ -12,7 +12,7 @@ const { validationResult } = require('express-validator');
 // Advanced Error Handler
 const errorHandler = (res, error, message = 'Server error', statusCode = 500) => {
   console.error(error.message || error);
-  return res.status(statusCode).json({ msg: message, error: error.message });
+  return res.status(statusCode).json({ msg: message, message, error: error.message });
 };
 
 // POST /api/signup (Create a new user)
@@ -47,10 +47,30 @@ exports.signUp = async (req, res) => {
 
     await user.save();
 
-    // 🎉 Trigger welcome email after saving user
-    await sendEmail(user.email);
+    // 🎉 Trigger welcome email after saving user (do not fail signup if email fails)
+    try {
+      await sendEmail(user.email);
+    } catch (emailError) {
+      console.warn("Welcome email failed:", emailError?.message || emailError);
+    }
 
-    return res.status(201).json({ msg: 'User registered successfully!', user });
+    const safeUser = {
+      _id: user._id,
+      name: user.name,
+      surname: user.surname,
+      email: user.email,
+      isAdmin: user.isAdmin,
+      membershipStartDate: user.membershipStartDate || null,
+      membershipActive: user.membershipActive || false,
+      contact: user.contact,
+      address: user.address,
+    };
+
+    return res.status(201).json({
+      msg: 'User registered successfully!',
+      message: 'User registered successfully!',
+      user: safeUser,
+    });
   } catch (err) {
     return errorHandler(res, err);
   }
@@ -69,12 +89,12 @@ exports.login = async (req, res) => {
   try {
     let user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ msg: 'Invalid credentials' });
+      return res.status(401).json({ msg: 'Invalid credentials', message: 'Invalid credentials' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ msg: 'Invalid credentials' });
+      return res.status(401).json({ msg: 'Invalid credentials', message: 'Invalid credentials' });
     }
 
     const payload = {
@@ -85,12 +105,14 @@ exports.login = async (req, res) => {
 
     return res.status(200).json({
       msg: 'Login successful',
+      message: 'Login successful',
       user: {
         _id: user._id,
         name: user.name,
+        surname: user.surname,
         email: user.email,
         isAdmin: user.isAdmin,
-        membershipStartDate: user.membershipStartDate || false,
+        membershipStartDate: user.membershipStartDate || null,
         membershipActive: user.membershipActive || false, // include membership status
         contact: user.contact,
         address: user.address,
@@ -168,7 +190,22 @@ exports.updateUser = async (req, res) => {
     }
 
     await user.save();
-    return res.status(200).json({ msg: 'User updated successfully', user });
+    const safeUser = {
+      _id: user._id,
+      name: user.name,
+      surname: user.surname,
+      email: user.email,
+      isAdmin: user.isAdmin,
+      membershipStartDate: user.membershipStartDate || null,
+      membershipActive: user.membershipActive || false,
+      contact: user.contact,
+      address: user.address,
+    };
+    return res.status(200).json({
+      msg: 'User updated successfully',
+      message: 'User updated successfully',
+      user: safeUser,
+    });
 
   } catch (err) {
     return errorHandler(res, err);
@@ -187,6 +224,7 @@ exports.getCurrentUser = async (req, res) => {
       user: {
         _id: user._id,
         name: user.name,
+        surname: user.surname,
         email: user.email,
         isAdmin: user.isAdmin,
         membershipStartDate: user.membershipStartDate, 
