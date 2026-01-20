@@ -12,9 +12,7 @@ const publicPetRoutes = require('./routes/publicPetRoutes');
 const emailRoutes = require("./routes/email");
 const paymentRoutes = require('./routes/payment');
 
-const Payment = require('./models/Payment');
-const Pet = require('./models/Pet');
-const User = require('./models/User');
+const { finalizeSuccessfulPayment } = require('./services/paymentFinalizer');
 
 const app = express();
 
@@ -52,127 +50,35 @@ app.use((req, res, next) => {
 app.post("/api/payment/webhook", async (req, res) => {
   const event = req.body;
 
-  console.log("[Webhook] Event received:", event?.eventType);
+  const eventType = event?.eventType || event?.type || event?.event_type || null;
+  console.log("[Webhook] Event received:", eventType);
 
-  if (event.eventType === 'charge.successful') {
-    const chargeData = event.data;
+  const successfulEventTypes = new Set([
+    'charge.successful',
+    'charge.succeeded',
+    'charge.success',
+    'checkout.completed',
+    'checkout.successful',
+    'checkout.succeeded',
+  ]);
 
-    try {
-      const {
-        metadata,
-        amount,
-        id: yocoChargeId
-      } = chargeData;
+  if (!successfulEventTypes.has(eventType)) return res.sendStatus(200);
 
-      const paymentId = metadata?.paymentId;
-      if (!paymentId) {
-        console.warn('[Webhook] Missing paymentId in metadata; skipping DB updates');
-        return res.sendStatus(200);
-      }
+  try {
+    const data = event?.data || {};
+    const metadata = data?.metadata || event?.metadata || null;
+    const paymentId = metadata?.paymentId || null;
+    const yocoChargeId = data?.id || data?.chargeId || data?.charge_id || null;
 
-      const payment = await Payment.findById(paymentId);
-      if (!payment) {
-        console.warn(`[Webhook] Payment not found: ${paymentId}`);
-        return res.sendStatus(200);
-      }
+    if (!paymentId) return res.sendStatus(200);
 
-      const paymentKind =
-        payment.kind || (payment.membership || metadata?.membershipId ? 'membership' : 'tag');
-
-      const petIds = Array.isArray(payment.petIds) && payment.petIds.length
-        ? payment.petIds
-        : (Array.isArray(metadata?.pets) ? metadata.pets : []);
-
-      await Payment.findByIdAndUpdate(paymentId, {
-        status: 'successful',
-        yocoChargeId,
-        updatedAt: new Date(),
-      });
-
-      if (paymentKind === 'membership') {
-        const membershipId = payment.membership || metadata?.membershipId || null;
-        if (membershipId && !payment.membership) {
-          await Payment.findByIdAndUpdate(paymentId, { membership: membershipId, updatedAt: new Date() });
-        }
-
-        let effectivePetIds = petIds;
-        if ((!effectivePetIds || effectivePetIds.length === 0) && payment.petDraft?.name) {
-          const draft = payment.petDraft;
-          const createdPet = await Pet.create({
-            name: draft.name,
-            species: draft.species,
-            breed: draft.breed,
-            age: draft.age,
-            gender: draft.gender,
-            color: draft.color || null,
-            size: draft.size || null,
-            dateOfBirth: draft.dateOfBirth || null,
-            spayedNeutered: !!draft.spayedNeutered,
-            trainingLevel: draft.trainingLevel || null,
-            weight: draft.weight || null,
-            microchipNumber: draft.microchipNumber || null,
-            photoUrl: draft.photoUrl || null,
-            userId: payment.userId,
-            hasMembership: true,
-            membership: membershipId,
-            membershipStartDate: new Date(),
-          });
-
-          effectivePetIds = [createdPet._id];
-          await Payment.findByIdAndUpdate(paymentId, { petIds: effectivePetIds, updatedAt: new Date() });
-        }
-
-        if (Array.isArray(effectivePetIds) && effectivePetIds.length) {
-          await Pet.updateMany(
-            { _id: { $in: effectivePetIds }, userId: payment.userId },
-            {
-              $set: {
-                hasMembership: true,
-                membership: membershipId,
-                membershipStartDate: new Date(),
-              }
-            }
-          );
-        }
-
-        const activePet = await Pet.findOne({ userId: payment.userId, hasMembership: true }).select('_id');
-        await User.findByIdAndUpdate(payment.userId, {
-          membershipActive: !!activePet,
-          membershipStartDate: !!activePet ? new Date() : null,
-        });
-      } else if (paymentKind === 'tag') {
-        const normalizedPackageType = (payment.packageType || metadata?.packageType || '').toString().toLowerCase();
-        const tagType =
-          metadata?.tagType ||
-          (normalizedPackageType.includes('airtag') && normalizedPackageType.includes('apple')
-            ? 'Apple AirTag'
-            : normalizedPackageType.includes('smart') && normalizedPackageType.includes('samsung')
-              ? 'Samsung SmartTag'
-              : normalizedPackageType.includes('tag')
-                ? 'Standard'
-                : null);
-
-        await Pet.updateMany(
-          { _id: { $in: petIds }, userId: payment.userId },
-          {
-            $set: {
-              hasTag: true,
-              tagType,
-              tagPurchaseDate: new Date(),
-            }
-          }
-        );
-      }
-
-      console.log(`[Webhook] Processed successfully for payment: ${paymentId}`);
-      return res.sendStatus(200);
-    } catch (err) {
-      console.error("[Webhook] Processing failed:", err.message);
-      return res.sendStatus(500);
-    }
+    const result = await finalizeSuccessfulPayment({ paymentId, yocoChargeId, metadata, now: new Date() });
+    if (!result.ok) console.warn('[Webhook] Finalization skipped:', result.reason);
+    return res.sendStatus(200);
+  } catch (err) {
+    console.error("[Webhook] Processing failed:", err.message);
+    return res.sendStatus(500);
   }
-
-  return res.sendStatus(200);
 });
 
 // Route registration

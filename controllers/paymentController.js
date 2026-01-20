@@ -3,6 +3,8 @@ const Payment = require('../models/Payment');
 const Pet = require('../models/Pet');
 const Membership = require('../models/Membership');
 const User = require('../models/User');
+const { finalizeSuccessfulPayment } = require('../services/paymentFinalizer');
+const { fetchCheckout } = require('../services/yoco');
 
 const getFrontendUrl = (req) => {
   const fromEnv = process.env.FRONTEND_URL;
@@ -334,48 +336,26 @@ const confirmPayment = async (req, res) => {
     });
 
     if (response.data.status === 'successful') {
-      // Update payment record
-      const paymentUpdate = await Payment.findByIdAndUpdate(paymentId, {
-        status: 'successful',
-        yocoChargeId: response.data.id
-      }, { new: true });
-
-      if (!paymentUpdate) {
-        console.error('Payment not found or failed to update:', paymentId);
-        return res.status(404).json({ success: false, message: 'Payment record not found' });
-      }
-
       if (payment.kind !== 'membership') {
         return res.status(400).json({ success: false, message: 'This endpoint only supports membership payments' });
       }
 
-      const membership = payment.membership ? await Membership.findById(payment.membership) : null;
-      if (!membership) return res.status(400).json({ success: false, message: 'Missing membership for this payment' });
+      const result = await finalizeSuccessfulPayment({
+        paymentId,
+        yocoChargeId: response.data.id,
+        metadata: {
+          paymentId,
+          kind: 'membership',
+          membershipId: payment.membership ? payment.membership.toString() : null,
+          pets: Array.isArray(payment.petIds) ? payment.petIds.map((id) => id.toString()) : [],
+          packageType: payment.packageType,
+        },
+        now: new Date(),
+      });
 
-      // Update pets with membership info and correct tagType casing
-      const petUpdateResult = await Pet.updateMany(
-        { _id: { $in: payment.petIds }, userId: payment.userId },
-        {
-          $set: {
-            hasMembership: true,
-            membership: membership._id,
-            membershipStartDate: new Date(),
-          }
-        }
-      );
-
-      if (petUpdateResult.modifiedCount === 0) {
-        console.warn('No pets were updated with membership info for user:', userId);
-      }
-
-      // Update user membership status
-      const userUpdate = await User.findByIdAndUpdate(payment.userId, {
-        membershipActive: true,
-        membershipStartDate: new Date(),
-      }, { new: true });
-
-      if (!userUpdate) {
-        console.warn('User not found or failed to update membership status:', userId);
+      if (!result.ok) {
+        console.error('Payment finalization failed:', result.reason);
+        return res.status(500).json({ success: false, message: 'Payment processing failed' });
       }
 
       return res.status(200).json({
@@ -398,10 +378,37 @@ const getPaymentDetails = async (req, res) => {
   const { paymentId } = req.params;
 
   try {
-    const payment = await Payment.findById(paymentId);
+    let payment = await Payment.findById(paymentId);
     if (!payment) return res.status(404).json({ success: false, message: "Payment not found" });
     if (!req.user?.isAdmin && payment.userId.toString() !== req.userId) {
       return res.status(403).json({ success: false, message: "Not authorized to view this payment" });
+    }
+
+    if (payment.status === 'pending' && payment.yocoCheckoutId) {
+      const checkoutResult = await fetchCheckout(payment.yocoCheckoutId);
+      if (checkoutResult.ok) {
+        const { checkout, interpretation } = checkoutResult;
+        const metadata = checkout?.metadata || null;
+
+        const metadataPaymentId = metadata?.paymentId ? metadata.paymentId.toString() : null;
+        if (metadataPaymentId && metadataPaymentId !== payment._id.toString()) {
+          console.warn('[getPaymentDetails] paymentId mismatch between DB and provider metadata', {
+            paymentId: payment._id.toString(),
+            metadataPaymentId,
+          });
+        } else if (interpretation?.isSuccessful) {
+          await finalizeSuccessfulPayment({
+            paymentId: payment._id,
+            yocoChargeId: interpretation?.yocoChargeId || null,
+            metadata,
+            now: new Date(),
+          });
+          payment = await Payment.findById(paymentId);
+        } else if ((interpretation?.isFailed || interpretation?.isCanceled) && !payment.processedAt) {
+          await Payment.findByIdAndUpdate(payment._id, { $set: { status: 'failed', updatedAt: new Date() } });
+          payment = await Payment.findById(paymentId);
+        }
+      }
     }
 
     const user = await User.findById(payment.userId).select("name surname email");
