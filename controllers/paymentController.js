@@ -4,6 +4,26 @@ const Pet = require('../models/Pet');
 const Membership = require('../models/Membership');
 const User = require('../models/User');
 
+const getFrontendUrl = (req) => {
+  const fromEnv = process.env.FRONTEND_URL;
+  const fromOrigin = req?.headers?.origin;
+  const fromReferer = req?.headers?.referer;
+
+  let candidate = fromEnv || fromOrigin;
+  if (!candidate && fromReferer) {
+    try {
+      candidate = new URL(fromReferer).origin;
+    } catch {
+      // ignore
+    }
+  }
+
+  const fallback = 'http://localhost:3000';
+  const normalized = (candidate || fallback).toString().trim().replace(/\/+$/, '');
+  if (!/^https?:\/\//i.test(normalized)) return fallback;
+  return normalized;
+};
+
 const normalizeBool = (value) => {
   if (typeof value === 'boolean') return value;
   const normalized = (value || '').toString().trim().toLowerCase();
@@ -38,11 +58,7 @@ const createCheckoutSession = async (req, res) => {
     return res.status(400).json({ success: false, message: "Missing required fields" });
   }
 
-  const frontendUrl = process.env.FRONTEND_URL;
-  if (!frontendUrl) {
-    console.error('Missing FRONTEND_URL in environment variables');
-    return res.status(500).json({ success: false, message: "Server misconfiguration: FRONTEND_URL is not set" });
-  }
+  const frontendUrl = getFrontendUrl(req);
 
   try {
     const normalizedPetIds = Array.isArray(petIds) ? petIds : [];
@@ -334,12 +350,27 @@ const getPaymentDetails = async (req, res) => {
         user,
         pets,
         kind: paymentKind,
+        petDraft: isMembershipPayment && payment.petDraft?.name
+          ? {
+              name: payment.petDraft.name,
+              species: payment.petDraft.species,
+              breed: payment.petDraft.breed,
+              age: payment.petDraft.age,
+              gender: payment.petDraft.gender,
+              size: payment.petDraft.size,
+              photoUrl: payment.petDraft.photoUrl,
+            }
+          : null,
         membership: isMembershipPayment
           ? { name: membershipDoc?.name || "Subscription", active: isActiveForPets }
           : { name: "No subscription", active: false },
         amountPaid: (payment.amountInCents / 100).toFixed(2),
         packageType: payment.packageType,
         status: payment.status,
+        yoco: {
+          checkoutId: payment.yocoCheckoutId || null,
+          chargeId: payment.yocoChargeId || null,
+        },
       },
     });
   } catch (err) {
