@@ -41,4 +41,6 @@ const petSchema = new Schema({
   tagPurchaseDate: { type: Date, default: null }  // optional, track when it was bought
 });
 
+petSchema.index({ userId: 1 });
+
 module.exports = mongoose.model("Pet", petSchema);
