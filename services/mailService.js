@@ -45,13 +45,13 @@ const sendEmail = async (to, subject, text, html) => {
   return getTransporter().sendMail(mailOptions);
 };
 
-const sendSignupSuccessEmail = async ({ to, name = "there" }) => {
+const sendSignupSuccessEmail = async ({ to, name = "there", verifyUrl = null }) => {
   const frontendUrl = getFrontendUrl();
-  const subject = "Welcome to Found Your Pet!";
+  const subject = verifyUrl ? "Verify your email — Found Your Pet" : "Welcome to Found Your Pet!";
 
   const text = `Hi ${name},
 
-Your Found Your Pet account is ready.
+Your Found Your Pet account is ready.${verifyUrl ? `\n\nVerify your email: ${verifyUrl}` : ""}
 
 Login here: ${frontendUrl}/login
 
@@ -62,12 +62,19 @@ Found Your Pet`;
   <div style="background-color:#f5f5f5;padding:40px 0;font-family:Arial,sans-serif;">
     <div style="max-width:600px;margin:auto;background-color:#ffffff;border:1px solid #ddd;border-radius:10px;overflow:hidden;">
       <div style="padding:28px 28px 12px;">
-        <h2 style="margin:0;color:#111;">Signup successful</h2>
+        <h2 style="margin:0;color:#111;">${verifyUrl ? "Verify your email" : "Signup successful"}</h2>
         <p style="margin:14px 0 0;color:#333;">Hi ${name},</p>
         <p style="margin:10px 0 0;color:#333;">Welcome to <strong>Found Your Pet</strong>.</p>
-        <p style="margin:18px 0;">
-          <a href="${frontendUrl}/login" style="display:inline-block;color:#fff;background:#0ea5a4;padding:10px 14px;border-radius:8px;text-decoration:none;">Login</a>
-        </p>
+        ${verifyUrl ? `
+          <p style="margin:18px 0 0;color:#333;">Please verify your email to complete registration.</p>
+          <p style="margin:18px 0;">
+            <a href="${verifyUrl}" style="display:inline-block;color:#fff;background:#0ea5a4;padding:10px 14px;border-radius:8px;text-decoration:none;">Verify email</a>
+          </p>
+        ` : `
+          <p style="margin:18px 0;">
+            <a href="${frontendUrl}/login" style="display:inline-block;color:#fff;background:#0ea5a4;padding:10px 14px;border-radius:8px;text-decoration:none;">Login</a>
+          </p>
+        `}
         <p style="margin:18px 0 0;color:#666;font-size:13px;">If you didn’t sign up, you can ignore this email.</p>
       </div>
       <div style="background-color:#f0f0f0;padding:16px 28px;color:#888;font-size:12px;">

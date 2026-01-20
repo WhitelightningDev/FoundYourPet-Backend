@@ -29,6 +29,14 @@ router.post(
   userController.signUp
 );
 
+// Email verification (frontend calls one of these)
+router.post('/resend-verification', userController.resendVerification);
+router.post('/resend-verification-email', userController.resendVerification);
+router.post('/send-verification', userController.resendVerification);
+router.post('/send-verification-email', userController.resendVerification);
+router.post('/verify-email/resend', userController.resendVerification);
+router.get('/verify-email/:token', userController.verifyEmail);
+
 /**
  * @route   POST /api/users/login
  * @desc    Login and get token
