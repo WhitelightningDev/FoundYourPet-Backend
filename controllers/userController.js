@@ -47,15 +47,17 @@ exports.signUp = async (req, res) => {
 
     await user.save();
 
-    // 🎉 Trigger welcome email after saving user (do not fail signup if email fails)
-    try {
-      await sendSignupSuccessEmail({
-        to: user.email,
-        name: user.name || 'there',
-      });
-    } catch (emailError) {
-      console.warn("Welcome email failed:", emailError?.message || emailError);
-    }
+    // 🎉 Trigger signup success email (do not block signup response)
+    setImmediate(async () => {
+      try {
+        await sendSignupSuccessEmail({
+          to: user.email,
+          name: user.name || 'there',
+        });
+      } catch (emailError) {
+        console.warn("Signup email failed:", emailError?.message || emailError);
+      }
+    });
 
     const safeUser = {
       _id: user._id,
