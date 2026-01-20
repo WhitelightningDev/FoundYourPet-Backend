@@ -1,15 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const Membership = require('../models/Membership');
+const membershipController = require('../controllers/membershipController');
+const auth = require('../middleware/auth');
+const admin = require('../middleware/admin');
 
 // GET all membership plans
-router.get('/', async (req, res) => {
-  try {
-    const memberships = await Membership.find();
-    res.json(memberships);
-  } catch (error) {
-    res.status(500).json({ msg: 'Failed to fetch memberships', error: error.message });
-  }
-});
+router.get('/', membershipController.getAllMemberships);
+router.get('/:id', membershipController.getMembershipById);
+
+// Admin CRUD
+router.post('/', auth, admin, membershipController.createMembership);
+router.put('/:id', auth, admin, membershipController.updateMembership);
+router.delete('/:id', auth, admin, membershipController.deleteMembership);
 
 module.exports = router;
