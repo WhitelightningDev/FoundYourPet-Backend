@@ -12,6 +12,9 @@ const getTransporter = () => {
   if (transporter) return transporter;
   transporter = nodemailer.createTransport({
     service: "gmail",
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
     auth: {
       user: process.env.GMAIL_USER,
       pass: process.env.GMAIL_PASS,
@@ -25,8 +28,11 @@ const getTransporter = () => {
  */
 const sendEmail = async (to, subject, text, html) => {
   if (!canSend()) {
+    const err = new Error('Email transport not configured (missing GMAIL_USER/GMAIL_PASS)');
+    err.code = 'EMAIL_NOT_CONFIGURED';
+    if ((process.env.NODE_ENV || '').toLowerCase() === 'production') throw err;
     console.warn("[mailService] Skipping email (missing GMAIL_USER/GMAIL_PASS)", { to, subject });
-    return { skipped: true };
+    return { skipped: true, reason: err.message };
   }
   const mailOptions = {
     from: `"Found Your Pet" <${process.env.GMAIL_USER}>`,
