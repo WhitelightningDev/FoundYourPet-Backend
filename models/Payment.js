@@ -58,6 +58,20 @@ const paymentSchema = new mongoose.Schema({
     shippedAt: { type: Date, default: null },
     deliveredAt: { type: Date, default: null },
   },
+  notifications: {
+    membership: {
+      sendingAt: { type: Date, default: null },
+      sentAt: { type: Date, default: null },
+      lastError: { type: String, default: null },
+      lastAttemptAt: { type: Date, default: null },
+    },
+    tag: {
+      sendingAt: { type: Date, default: null },
+      sentAt: { type: Date, default: null },
+      lastError: { type: String, default: null },
+      lastAttemptAt: { type: Date, default: null },
+    },
+  },
   status: { type: String, enum: ['pending', 'successful', 'failed'], default: 'pending' },
   yocoChargeId: { type: String },
   yocoCheckoutId: { type: String, default: null },
