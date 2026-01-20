@@ -30,9 +30,9 @@ const seedPackages = [
       "25mm Nickel-Plated Tag (Rust-Proof)",
       "Engraved QR Code",
       "Delivery To Closest PUDO Locker",
-      "Pet Profile Access"
-    ]
-  }
+      "Pet Profile Access",
+    ],
+  },
 ];
 
 const seedMemberships = [
@@ -44,29 +44,10 @@ const seedMemberships = [
       "Ongoing Pet Profile Hosting",
       "Free Tag Replacement",
       "Priority Support",
-      "Early Access to New Features"
-    ]
-  }
-];
-
-const adminUser = {
-  name: 'admin',
-  surname: 'user',
-  contact: '0746588885',
-  email: 'danielmommsen2@gmail.com',
-  password: 'Admin',
-  address: {
-    street: 'N/A',
-    city: 'N/A',
-    province: 'N/A',
-    postalCode: '0000',
-    country: 'N/A'
+      "Early Access to New Features",
+    ],
   },
-  privacyPolicy: true,
-  termsConditions: true,
-  agreement: true,
-  isAdmin: true
-};
+];
 
 const seedPetsTemplate = [
   {
@@ -85,6 +66,34 @@ const seedPetsTemplate = [
   // Add more pets if needed
 ];
 
+
+function getAdminSeed() {
+  return {
+    name: process.env.ADMIN_NAME || 'Daniel',
+    surname: process.env.ADMIN_SURNAME || 'Mommsen',
+    contact: process.env.ADMIN_CONTACT || '0000000000',
+    email: process.env.ADMIN_EMAIL || 'danielmommsen@hotmail.com',
+    password: process.env.ADMIN_PASSWORD || 'Admin',
+    address: {
+      street: process.env.ADMIN_ADDRESS_STREET || 'N/A',
+      city: process.env.ADMIN_ADDRESS_CITY || 'N/A',
+      province: process.env.ADMIN_ADDRESS_PROVINCE || 'N/A',
+      postalCode: process.env.ADMIN_ADDRESS_POSTAL_CODE || '0000',
+      country: process.env.ADMIN_ADDRESS_COUNTRY || 'N/A',
+    },
+    privacyPolicy: true,
+    termsConditions: true,
+    agreement: true,
+    isAdmin: true,
+  };
+}
+
+const legacyAdminEmails = ['danielmommsen2@gmail.com'];
+
+
+
+
+
 async function seedDatabase() {
   try {
     const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI || process.env.DATABASE_URL;
@@ -93,12 +102,13 @@ async function seedDatabase() {
     await mongoose.connect(mongoUri);
     console.log('🔗 Connected to MongoDB');
 
+    const adminSeed = getAdminSeed();
+
     // Clear collections
     await AddOn.deleteMany({});
     await Package.deleteMany({});
     await Membership.deleteMany({});
     await Pet.deleteMany({});
-    await User.deleteMany({ email: adminUser.email }); // Optional: delete existing admin to avoid conflicts
 
     // Insert seed data
     await AddOn.insertMany(seedAddOns);
@@ -107,27 +117,52 @@ async function seedDatabase() {
 
     console.log('✅ AddOns, Packages, and Memberships seeded successfully!');
 
-    // Check for existing admin user
-    let existingAdmin = await User.findOne({ email: adminUser.email });
-    if (!existingAdmin) {
-      const hashedPassword = await bcrypt.hash(adminUser.password, 10);
-      adminUser.password = hashedPassword;
-      existingAdmin = await User.create(adminUser);
-      console.log('✅ Admin user created!');
+    // Create/update admin user (idempotent)
+    let admin = await User.findOne({ email: adminSeed.email });
+
+    if (!admin && legacyAdminEmails.length > 0) {
+      const legacyAdmin = await User.findOne({ email: { $in: legacyAdminEmails } });
+      if (legacyAdmin) {
+        legacyAdmin.email = adminSeed.email;
+        await legacyAdmin.save();
+        admin = legacyAdmin;
+        console.log(`✅ Admin email updated to ${adminSeed.email}`);
+      }
+    }
+
+    if (!admin) {
+      const hashedPassword = await bcrypt.hash(adminSeed.password, 10);
+      admin = await User.create({ ...adminSeed, password: hashedPassword });
+      console.log(`✅ Admin user created (${adminSeed.email})`);
     } else {
-      if (!existingAdmin.isAdmin) {
-        existingAdmin.isAdmin = true;
-        await existingAdmin.save();
-        console.log('✅ Admin user updated to isAdmin=true');
+      const update = {};
+      if (!admin.isAdmin) update.isAdmin = true;
+      if (process.env.ADMIN_RESET_PASSWORD === 'true') {
+        update.password = await bcrypt.hash(adminSeed.password, 10);
+      }
+      if (process.env.ADMIN_UPDATE_PROFILE === 'true') {
+        update.name = adminSeed.name;
+        update.surname = adminSeed.surname;
+        update.contact = adminSeed.contact;
+        update.address = adminSeed.address;
+        update.privacyPolicy = adminSeed.privacyPolicy;
+        update.termsConditions = adminSeed.termsConditions;
+        update.agreement = adminSeed.agreement;
+      }
+
+      if (Object.keys(update).length > 0) {
+        await User.updateOne({ _id: admin._id }, { $set: update });
+        admin = await User.findById(admin._id);
+        console.log(`✅ Admin user updated (${adminSeed.email})`);
       } else {
-        console.log('⚠️ Admin user already exists and isAdmin is set to true.');
+        console.log(`⚠️ Admin user already exists (${adminSeed.email})`);
       }
     }
 
     // Assign the userId dynamically to each pet and insert
     const seedPets = seedPetsTemplate.map(pet => ({
       ...pet,
-      userId: existingAdmin._id
+      userId: admin._id
     }));
 
     await Pet.insertMany(seedPets);

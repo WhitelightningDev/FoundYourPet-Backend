@@ -125,6 +125,21 @@ const finalizeSuccessfulPayment = async ({ paymentId, yocoChargeId = null, metad
         { $set: update }
       );
     }
+
+    const paymentUpdate = { updatedAt: now };
+    if (tagType && !refreshedPayment.tagType) paymentUpdate.tagType = tagType;
+    if (!refreshedPayment.fulfillment?.status) {
+      paymentUpdate['fulfillment.provider'] = 'pudo';
+      paymentUpdate['fulfillment.status'] = 'unfulfilled';
+      paymentUpdate['fulfillment.createdAt'] = now;
+      paymentUpdate['fulfillment.updatedAt'] = now;
+    } else if (!refreshedPayment.fulfillment?.updatedAt) {
+      paymentUpdate['fulfillment.updatedAt'] = now;
+    }
+
+    if (Object.keys(paymentUpdate).length > 1) {
+      await Payment.findByIdAndUpdate(paymentId, { $set: paymentUpdate });
+    }
   }
 
   return { ok: true, payment: await Payment.findById(paymentId) };
