@@ -61,6 +61,11 @@
 - `GET /api/notifications/webpush/public-key`
 - Response: `{ publicKey: string }`
 
+### Notifications (public Web Push unsubscribe)
+
+- `POST /api/notifications/webpush/unsubscribe`
+- Body: `{ endpoint: string }`
+
 ### Notifications (admin broadcast helper)
 
 - `POST /api/notifications/broadcast` (requires Bearer token with `isAdmin=true`)

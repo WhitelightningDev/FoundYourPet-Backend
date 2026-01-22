@@ -81,6 +81,30 @@ exports.getWebPushPublicKey = async (req, res) => {
   return res.json({ publicKey });
 };
 
+exports.unsubscribeWebPush = async (req, res) => {
+  try {
+    const endpoint = String(req.body?.endpoint || "").trim();
+    if (!endpoint) return res.status(400).json({ message: "endpoint is required" });
+
+    await WebPushSubscription.updateOne({ endpoint }, { $set: { isActive: false } });
+    return res.json({ ok: true });
+  } catch (err) {
+    return errorHandler(res, err);
+  }
+};
+
+exports.unregisterToken = async (req, res) => {
+  try {
+    const token = String(req.body?.token || "").trim();
+    if (!token) return res.status(400).json({ message: "token is required" });
+
+    await NotificationToken.updateOne({ token }, { $set: { isActive: false } });
+    return res.json({ ok: true });
+  } catch (err) {
+    return errorHandler(res, err);
+  }
+};
+
 // Admin-only helper endpoint
 exports.broadcast = async (req, res) => {
   try {
