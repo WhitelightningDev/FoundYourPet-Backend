@@ -9,14 +9,22 @@ try {
   require('../models/AddOn');
   require('../models/Package');
   require('../models/Membership');
+  require('../models/Report');
+  require('../models/ReportComment');
+  require('../models/ReportReaction');
+  require('../models/ReportFlag');
+  require('../models/NotificationToken');
   require('../controllers/userController');
   require('../controllers/petController');
   require('../controllers/paymentController');
   require('../controllers/addOnController');
   require('../controllers/packageController');
   require('../controllers/membershipController');
+  require('../controllers/reportController');
+  require('../controllers/notificationController');
   require('../services/paymentFinalizer');
   require('../services/yoco');
+  require('../services/fcm');
   console.log('smoke ok');
   process.exit(0);
 } catch (err) {
