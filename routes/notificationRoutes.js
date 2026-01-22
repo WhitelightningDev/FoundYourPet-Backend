@@ -32,6 +32,18 @@ router.post(
 router.get("/webpush/public-key", notificationController.getWebPushPublicKey);
 
 router.post(
+  "/webpush/unsubscribe",
+  [body("endpoint").isString().notEmpty().withMessage("endpoint is required")],
+  notificationController.unsubscribeWebPush
+);
+
+router.post(
+  "/unregister",
+  [body("token").isString().notEmpty().withMessage("token is required")],
+  notificationController.unregisterToken
+);
+
+router.post(
   "/broadcast",
   authenticate,
   [body("title").optional().isString(), body("body").optional().isString(), body("data").optional().isObject()],
