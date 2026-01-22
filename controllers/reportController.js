@@ -24,7 +24,7 @@ const uploadImageToCloudinary = (fileBuffer) => {
       { folder: "pet_reports" },
       (error, result) => {
         if (error) reject(error);
-        else resolve(result.secure_url);
+        else resolve({ url: result.secure_url, publicId: result.public_id || null });
       }
     );
     stream.pipe(uploadStream);
@@ -84,7 +84,7 @@ exports.createPublicPetReport = async (req, res) => {
       description = "",
     } = req.body;
 
-    const photoUrl = await uploadImageToCloudinary(req.file.buffer);
+    const uploaded = await uploadImageToCloudinary(req.file.buffer);
 
     const report = await Report.create({
       firstName: String(firstName).trim(),
@@ -93,7 +93,8 @@ exports.createPublicPetReport = async (req, res) => {
       petStatus: String(petStatus).trim().toLowerCase(),
       location: String(location).trim(),
       description: String(description || "").trim(),
-      photoUrl,
+      photoUrl: uploaded.url,
+      photoPublicId: uploaded.publicId,
     });
 
     // Fire-and-forget push notifications
@@ -172,6 +173,76 @@ exports.createPublicPetReport = async (req, res) => {
     })().catch((err) => console.warn("[WebPush] send failed:", err.message || err));
 
     return res.status(201).json({ report: serializeReportForPublic(report) });
+  } catch (err) {
+    return errorHandler(res, err);
+  }
+};
+
+exports.listAdminReports = async (req, res) => {
+  try {
+    if (!req.user?.isAdmin) return res.status(403).json({ message: "Forbidden" });
+
+    const page = normalizePagination(req.query.page, { fallback: 1, min: 1, max: 100000 });
+    const limit = normalizePagination(req.query.limit, { fallback: 12, min: 1, max: 50 });
+    const skip = (page - 1) * limit;
+
+    const statusFilter = (req.query.status || "").toString().trim().toLowerCase();
+    const query = {};
+    if (statusFilter === "lost" || statusFilter === "found") query.petStatus = statusFilter;
+    if (req.query.hidden === "true") query.isHidden = true;
+    if (req.query.hidden === "false") query.isHidden = false;
+
+    const docs = await Report.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit + 1)
+      .lean();
+
+    const hasMore = docs.length > limit;
+    const items = docs.slice(0, limit).map((r) => ({
+      id: r._id,
+      firstName: r.firstName,
+      lastName: r.lastName,
+      phoneNumber: r.phoneNumber,
+      petStatus: r.petStatus,
+      location: r.location,
+      description: r.description || "",
+      photoUrl: r.photoUrl,
+      createdAt: r.createdAt,
+      reactions: r.reactions || { like: 0, heart: 0, help: 0, seen: 0, helped: 0 },
+      commentsCount: r.commentsCount || 0,
+      flagsCount: r.flagsCount || 0,
+      isHidden: Boolean(r.isHidden),
+    }));
+
+    return res.json({ items, nextPage: hasMore ? page + 1 : null });
+  } catch (err) {
+    return errorHandler(res, err);
+  }
+};
+
+exports.deleteReportAdmin = async (req, res) => {
+  try {
+    if (!req.user?.isAdmin) return res.status(403).json({ message: "Forbidden" });
+    const { reportId } = req.params;
+
+    const report = await Report.findById(reportId);
+    if (!report) return res.status(404).json({ message: "Report not found" });
+
+    await Promise.all([
+      ReportComment.deleteMany({ reportId: report._id }),
+      ReportReaction.deleteMany({ reportId: report._id }),
+      ReportFlag.deleteMany({ reportId: report._id }),
+    ]);
+
+    const publicId = report.photoPublicId;
+    await Report.deleteOne({ _id: report._id });
+
+    if (publicId) {
+      cloudinary.uploader.destroy(publicId).catch(() => null);
+    }
+
+    return res.json({ ok: true });
   } catch (err) {
     return errorHandler(res, err);
   }

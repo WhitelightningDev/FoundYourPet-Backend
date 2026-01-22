@@ -13,6 +13,7 @@ const emailRoutes = require("./routes/email");
 const paymentRoutes = require('./routes/payment');
 const reportRoutes = require("./routes/reportRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const analyticsRoutes = require("./routes/analyticsRoutes");
 
 const { finalizeSuccessfulPayment } = require('./services/paymentFinalizer');
 
@@ -94,6 +95,7 @@ app.use('/api/addons', addOnRoutes);
 app.use('/api/packages', packageRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 // Health check route
 app.get('/', (req, res) => {

@@ -15,6 +15,7 @@ try {
   require('../models/ReportFlag');
   require('../models/NotificationToken');
   require('../models/WebPushSubscription');
+  require('../models/AnalyticsSession');
   require('../controllers/userController');
   require('../controllers/petController');
   require('../controllers/paymentController');
@@ -23,6 +24,7 @@ try {
   require('../controllers/membershipController');
   require('../controllers/reportController');
   require('../controllers/notificationController');
+  require('../controllers/analyticsController');
   require('../services/paymentFinalizer');
   require('../services/yoco');
   require('../services/fcm');
