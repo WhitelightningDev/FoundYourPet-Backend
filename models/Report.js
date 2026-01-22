@@ -9,6 +9,7 @@ const ReportSchema = new mongoose.Schema(
     location: { type: String, required: true, trim: true },
     description: { type: String, default: "", trim: true },
     photoUrl: { type: String, required: true },
+    photoPublicId: { type: String, default: null },
 
     reactions: {
       like: { type: Number, default: 0 },
@@ -27,4 +28,3 @@ const ReportSchema = new mongoose.Schema(
 );
 
 module.exports = mongoose.model("Report", ReportSchema);
-

@@ -17,6 +17,8 @@ router.get(
   reportController.listPublicReports
 );
 
+router.get("/admin", authenticate, reportController.listAdminReports);
+
 router.post(
   "/public-pet",
   upload.single("photo"),
@@ -90,5 +92,7 @@ router.post("/:reportId/unhide", authenticate, [param("reportId").isMongoId()], 
   if (!report) return res.status(404).json({ message: "Report not found" });
   return res.json({ ok: true });
 });
+
+router.delete("/:reportId", authenticate, [param("reportId").isMongoId()], reportController.deleteReportAdmin);
 
 module.exports = router;

@@ -51,6 +51,16 @@
 - `POST /api/notifications/register`
 - Body: `{ token: string, platform?: "web"|"ios"|"android", userAgent?: string }`
 
+### Notifications (public Web Push subscription)
+
+- `POST /api/notifications/webpush/subscribe`
+- Body: `{ subscription: PushSubscription, platform?: string, userAgent?: string }`
+
+### Notifications (public Web Push public key)
+
+- `GET /api/notifications/webpush/public-key`
+- Response: `{ publicKey: string }`
+
 ### Notifications (admin broadcast helper)
 
 - `POST /api/notifications/broadcast` (requires Bearer token with `isAdmin=true`)
@@ -61,3 +71,7 @@
 - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
 - `FIREBASE_SERVICE_ACCOUNT_JSON` (stringified service account JSON, optional)
 - `REPORT_AUTOHIDE_FLAGS` (0 disables auto-hide)
+- `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`, `WEB_PUSH_CONTACT` (optional, enables browser/PWA push)
+
+Generate VAPID keys:
+- `npm run vapid:generate`

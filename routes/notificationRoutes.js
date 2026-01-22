@@ -17,6 +17,21 @@ router.post(
 );
 
 router.post(
+  "/webpush/subscribe",
+  [
+    body("subscription").notEmpty().withMessage("subscription is required"),
+    body("subscription.endpoint").isString().notEmpty(),
+    body("subscription.keys.p256dh").isString().notEmpty(),
+    body("subscription.keys.auth").isString().notEmpty(),
+    body("platform").optional().isString(),
+    body("userAgent").optional().isString(),
+  ],
+  notificationController.subscribeWebPush
+);
+
+router.get("/webpush/public-key", notificationController.getWebPushPublicKey);
+
+router.post(
   "/broadcast",
   authenticate,
   [body("title").optional().isString(), body("body").optional().isString(), body("data").optional().isObject()],
@@ -24,4 +39,3 @@ router.post(
 );
 
 module.exports = router;
-
