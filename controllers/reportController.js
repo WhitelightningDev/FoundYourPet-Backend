@@ -17,6 +17,22 @@ const errorHandler = (res, error, message = "Server error", statusCode = 500) =>
   return res.status(statusCode).json({ message, error: error.message });
 };
 
+const ensureCloudinaryConfigured = () => {
+  const cfg = cloudinary.config();
+  const cloudName = cfg?.cloud_name || process.env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = cfg?.api_key || process.env.CLOUDINARY_API_KEY;
+  const apiSecret = cfg?.api_secret || process.env.CLOUDINARY_API_SECRET;
+
+  if (!cloudName || !apiKey || !apiSecret) {
+    const err = new Error(
+      "Image upload not configured (missing CLOUDINARY_CLOUD_NAME/CLOUDINARY_API_KEY/CLOUDINARY_API_SECRET)"
+    );
+    err.code = "CLOUDINARY_NOT_CONFIGURED";
+    err.statusCode = 503;
+    throw err;
+  }
+};
+
 const uploadImageToCloudinary = (fileBuffer) => {
   return new Promise((resolve, reject) => {
     const stream = streamifier.createReadStream(fileBuffer);
@@ -84,6 +100,7 @@ exports.createPublicPetReport = async (req, res) => {
       description = "",
     } = req.body;
 
+    ensureCloudinaryConfigured();
     const uploaded = await uploadImageToCloudinary(req.file.buffer);
 
     const report = await Report.create({
@@ -174,6 +191,9 @@ exports.createPublicPetReport = async (req, res) => {
 
     return res.status(201).json({ report: serializeReportForPublic(report) });
   } catch (err) {
+    if (err?.code === "CLOUDINARY_NOT_CONFIGURED") {
+      return res.status(err.statusCode || 503).json({ message: err.message });
+    }
     return errorHandler(res, err);
   }
 };
