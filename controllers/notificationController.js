@@ -1,7 +1,9 @@
 const { validationResult } = require("express-validator");
 
 const NotificationToken = require("../models/NotificationToken");
+const WebPushSubscription = require("../models/WebPushSubscription");
 const { canSendFcm, sendMulticast } = require("../services/fcm");
+const { getVapidPublicKey } = require("../services/webPush");
 
 const errorHandler = (res, error, message = "Server error", statusCode = 500) => {
   console.error(error.message || error);
@@ -32,6 +34,53 @@ exports.registerToken = async (req, res) => {
   }
 };
 
+exports.subscribeWebPush = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ message: "Invalid input", errors: errors.array() });
+
+    const subscription = req.body.subscription;
+    const endpoint = String(subscription?.endpoint || "").trim();
+    const p256dh = String(subscription?.keys?.p256dh || "").trim();
+    const auth = String(subscription?.keys?.auth || "").trim();
+
+    if (!endpoint || !p256dh || !auth) {
+      return res.status(400).json({ message: "Invalid subscription" });
+    }
+
+    const platform = String(req.body.platform || "web").trim().toLowerCase();
+    const userAgent = String(req.body.userAgent || req.headers["user-agent"] || "").trim();
+    const allowedPlatforms = new Set(["web", "ios", "android", "unknown"]);
+    const safePlatform = allowedPlatforms.has(platform) ? platform : "unknown";
+
+    await WebPushSubscription.findOneAndUpdate(
+      { endpoint },
+      {
+        $set: {
+          endpoint,
+          expirationTime: subscription?.expirationTime ?? null,
+          keys: { p256dh, auth },
+          platform: safePlatform,
+          userAgent,
+          isActive: true,
+          lastSeenAt: new Date(),
+        },
+      },
+      { upsert: true, new: true }
+    );
+
+    return res.status(201).json({ ok: true });
+  } catch (err) {
+    return errorHandler(res, err);
+  }
+};
+
+exports.getWebPushPublicKey = async (req, res) => {
+  const publicKey = getVapidPublicKey();
+  if (!publicKey) return res.status(404).json({ message: "Web Push is not configured" });
+  return res.json({ publicKey });
+};
+
 // Admin-only helper endpoint
 exports.broadcast = async (req, res) => {
   try {
@@ -52,4 +101,3 @@ exports.broadcast = async (req, res) => {
     return errorHandler(res, err);
   }
 };
-

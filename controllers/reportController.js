@@ -9,6 +9,8 @@ const ReportFlag = require("../models/ReportFlag");
 const ReportReaction = require("../models/ReportReaction");
 const NotificationToken = require("../models/NotificationToken");
 const { canSendFcm, sendMulticast } = require("../services/fcm");
+const WebPushSubscription = require("../models/WebPushSubscription");
+const { canSendWebPush, sendNotification } = require("../services/webPush");
 
 const errorHandler = (res, error, message = "Server error", statusCode = 500) => {
   console.error(error.message || error);
@@ -94,8 +96,11 @@ exports.createPublicPetReport = async (req, res) => {
       photoUrl,
     });
 
-    // Fire-and-forget push notification
+    // Fire-and-forget push notifications
     (async () => {
+      const title = `New ${report.petStatus === "found" ? "found" : "lost"} pet report`;
+      const body = report.location ? `Location: ${report.location}` : "Open the app to view details.";
+
       if (!canSendFcm()) return;
       const tokens = await NotificationToken.find({ isActive: true })
         .sort({ updatedAt: -1 })
@@ -105,9 +110,6 @@ exports.createPublicPetReport = async (req, res) => {
 
       const tokenList = tokens.map((t) => t.token).filter(Boolean);
       if (!tokenList.length) return;
-
-      const title = `New ${report.petStatus === "found" ? "found" : "lost"} pet report`;
-      const body = report.location ? `Location: ${report.location}` : "Open the app to view details.";
 
       const batchSize = 500;
       for (let i = 0; i < tokenList.length; i += batchSize) {
@@ -135,6 +137,39 @@ exports.createPublicPetReport = async (req, res) => {
         }
       }
     })().catch((err) => console.warn("[FCM] send failed:", err.message || err));
+
+    (async () => {
+      if (!canSendWebPush()) return;
+      const subs = await WebPushSubscription.find({ isActive: true })
+        .sort({ updatedAt: -1 })
+        .limit(5000)
+        .select("endpoint expirationTime keys")
+        .lean();
+
+      if (!subs.length) return;
+
+      const payload = JSON.stringify({
+        title: `New ${report.petStatus === "found" ? "found" : "lost"} pet report`,
+        body: report.location ? `Location: ${report.location}` : "Open the app to view details.",
+        url: "/reports",
+        reportId: String(report._id),
+      });
+
+      for (const sub of subs) {
+        const result = await sendNotification(
+          {
+            endpoint: sub.endpoint,
+            expirationTime: sub.expirationTime ?? null,
+            keys: sub.keys,
+          },
+          payload
+        );
+
+        if (!result.ok && (result.statusCode === 404 || result.statusCode === 410)) {
+          await WebPushSubscription.updateOne({ endpoint: sub.endpoint }, { $set: { isActive: false } });
+        }
+      }
+    })().catch((err) => console.warn("[WebPush] send failed:", err.message || err));
 
     return res.status(201).json({ report: serializeReportForPublic(report) });
   } catch (err) {

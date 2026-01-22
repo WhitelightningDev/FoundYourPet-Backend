@@ -14,6 +14,7 @@ try {
   require('../models/ReportReaction');
   require('../models/ReportFlag');
   require('../models/NotificationToken');
+  require('../models/WebPushSubscription');
   require('../controllers/userController');
   require('../controllers/petController');
   require('../controllers/paymentController');
@@ -25,6 +26,7 @@ try {
   require('../services/paymentFinalizer');
   require('../services/yoco');
   require('../services/fcm');
+  require('../services/webPush');
   console.log('smoke ok');
   process.exit(0);
 } catch (err) {
