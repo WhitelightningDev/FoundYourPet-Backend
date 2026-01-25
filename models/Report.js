@@ -2,13 +2,15 @@ const mongoose = require("mongoose");
 
 const ReportSchema = new mongoose.Schema(
   {
+    petName: { type: String, default: "", trim: true },
+    petType: { type: String, default: "dog", enum: ["dog", "cat"] },
     firstName: { type: String, required: true, trim: true },
     lastName: { type: String, required: true, trim: true },
     phoneNumber: { type: String, required: true, trim: true },
     petStatus: { type: String, required: true, enum: ["lost", "found"] },
     location: { type: String, required: true, trim: true },
     description: { type: String, default: "", trim: true },
-    photoUrl: { type: String, required: true },
+    photoUrl: { type: String, default: null },
     photoPublicId: { type: String, default: null },
 
     reactions: {
