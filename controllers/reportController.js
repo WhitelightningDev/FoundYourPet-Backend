@@ -70,9 +70,14 @@ const getClientId = (req) => {
 const serializeReportForPublic = (reportDoc) => {
   const report = reportDoc?.toObject ? reportDoc.toObject() : reportDoc;
   if (!report) return null;
+  const lastInitial = (report.lastName || "").toString().trim().slice(0, 1);
+  const postedBy = [report.firstName, lastInitial ? `${lastInitial}.` : null].filter(Boolean).join(" ").trim();
   return {
     id: report._id,
+    petName: report.petName || "",
+    petType: report.petType || "dog",
     firstName: report.firstName,
+    postedBy: postedBy || report.firstName,
     petStatus: report.petStatus,
     location: report.location,
     description: report.description || "",
@@ -89,9 +94,9 @@ exports.createPublicPetReport = async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ message: "Invalid input", errors: errors.array() });
 
-    if (!req.file) return res.status(400).json({ message: "Pet photo is required" });
-
     const {
+      petName = "",
+      petType = "dog",
       firstName,
       lastName,
       phoneNumber,
@@ -100,10 +105,18 @@ exports.createPublicPetReport = async (req, res) => {
       description = "",
     } = req.body;
 
-    ensureCloudinaryConfigured();
-    const uploaded = await uploadImageToCloudinary(req.file.buffer);
+    const normalizedPetType = String(petType || "dog").trim().toLowerCase() === "cat" ? "cat" : "dog";
+    const normalizedPetName = String(petName || "").trim().slice(0, 80);
+
+    let uploaded = { url: null, publicId: null };
+    if (req.file?.buffer) {
+      ensureCloudinaryConfigured();
+      uploaded = await uploadImageToCloudinary(req.file.buffer);
+    }
 
     const report = await Report.create({
+      petName: normalizedPetName,
+      petType: normalizedPetType,
       firstName: String(firstName).trim(),
       lastName: String(lastName).trim(),
       phoneNumber: String(phoneNumber).trim(),
@@ -195,6 +208,20 @@ exports.createPublicPetReport = async (req, res) => {
       return res.status(err.statusCode || 503).json({ message: err.message });
     }
     return errorHandler(res, err);
+  }
+};
+
+exports.getPublicReport = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ message: "Invalid input", errors: errors.array() });
+
+    const report = await Report.findOne({ _id: req.params.reportId, isHidden: { $ne: true } });
+    if (!report) return res.status(404).json({ message: "Report not found" });
+
+    return res.json({ report: serializeReportForPublic(report) });
+  } catch (err) {
+    return errorHandler(res, err, "Failed to load report");
   }
 };
 

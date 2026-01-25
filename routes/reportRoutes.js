@@ -23,6 +23,8 @@ router.post(
   "/public-pet",
   upload.single("photo"),
   [
+    body("petName").optional().isString().isLength({ max: 80 }).withMessage("petName must be <= 80 chars"),
+    body("petType").optional().trim().isIn(["dog", "cat"]).withMessage("petType must be dog or cat"),
     body("firstName").trim().notEmpty().withMessage("firstName is required"),
     body("lastName").trim().notEmpty().withMessage("lastName is required"),
     body("phoneNumber").trim().notEmpty().withMessage("phoneNumber is required"),
@@ -31,6 +33,12 @@ router.post(
     body("description").optional().isString(),
   ],
   reportController.createPublicPetReport
+);
+
+router.get(
+  "/public/:reportId",
+  [param("reportId").isMongoId().withMessage("Invalid reportId")],
+  reportController.getPublicReport
 );
 
 router.post(
