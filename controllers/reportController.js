@@ -248,6 +248,8 @@ exports.listAdminReports = async (req, res) => {
     const hasMore = docs.length > limit;
     const items = docs.slice(0, limit).map((r) => ({
       id: r._id,
+      petName: r.petName || "",
+      petType: r.petType || "dog",
       firstName: r.firstName,
       lastName: r.lastName,
       phoneNumber: r.phoneNumber,
