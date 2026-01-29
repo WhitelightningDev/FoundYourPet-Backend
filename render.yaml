@@ -24,6 +24,30 @@ services:
         sync: false
       - key: FRONTEND_URL
         sync: false
+      - key: BACKEND_URL
+        sync: false
+      - key: PAYFAST_MERCHANT_ID
+        sync: false
+      - key: PAYFAST_MERCHANT_KEY
+        sync: false
+      - key: PAYFAST_PASSPHRASE
+        sync: false
+      - key: PAYFAST_MODE
+        sync: false
+      - key: PAYFAST_IP_ALLOWLIST
+        sync: false
+      - key: PAYFAST_VALIDATE_WITH_SERVER
+        sync: false
+      - key: PAYFAST_AMOUNT_TOLERANCE_CENTS
+        sync: false
+      - key: SUBSCRIPTION_INITIAL_PRICE_ZAR
+        sync: false
+      - key: SUBSCRIPTION_RECURRING_PRICE_ZAR
+        sync: false
+      - key: SUBSCRIPTION_MONTHLY_PRICE_ZAR
+        sync: false
+      - key: SUBSCRIPTION_GRACE_DAYS
+        sync: false
       - key: WEB_PUSH_VAPID_PUBLIC_KEY
         sync: false
       - key: WEB_PUSH_VAPID_PRIVATE_KEY
