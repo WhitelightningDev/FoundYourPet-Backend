@@ -14,6 +14,8 @@ const paymentRoutes = require('./routes/payment');
 const reportRoutes = require("./routes/reportRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
+const payfastRoutes = require('./routes/payfast.routes');
+const subscriptionRoutes = require('./routes/subscriptionRoutes');
 
 const { finalizeSuccessfulPayment } = require('./services/paymentFinalizer');
 
@@ -35,7 +37,13 @@ app.use(express.json({
     if (req.originalUrl === '/api/payment/webhook') req.rawBody = buf;
   }
 }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(express.urlencoded({
+  extended: false,
+  limit: "10mb",
+  verify: (req, res, buf) => {
+    if (req.originalUrl === '/api/payfast/itn') req.rawBody = buf;
+  },
+}));
 
 // CORS setup
 app.use(cors());
@@ -86,6 +94,8 @@ app.post("/api/payment/webhook", async (req, res) => {
 
 // Route registration
 app.use('/api/payment', paymentRoutes);
+app.use('/api/payfast', payfastRoutes);
+app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/memberships', require('./routes/membershipRoutes'));
 app.use("/api/email", emailRoutes);
 app.use('/api/users', userRoutes);
